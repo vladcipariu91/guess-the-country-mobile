@@ -1,0 +1,52 @@
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local configuration
+local.properties
+.env
+.env.*
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.fleet/
+
+# Android
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+output-metadata.json
+
+# Signing & secrets
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+keystore.properties
+google-services.json
+GoogleService-Info.plist
+
+# Xcode / iOS
+xcuserdata/
+*.xcuserstate
+DerivedData/
+iosApp/build/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.dSYM
+Pods/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log

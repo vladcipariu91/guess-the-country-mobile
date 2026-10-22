@@ -1,0 +1,4 @@
+// Apple Developer team ID used to sign builds for a physical iPhone.
+TEAM_ID=E4NLCKE6DN
+BUNDLE_ID=me.vladcip.guessthecountry
+APP_NAME=GuessTheCountry
