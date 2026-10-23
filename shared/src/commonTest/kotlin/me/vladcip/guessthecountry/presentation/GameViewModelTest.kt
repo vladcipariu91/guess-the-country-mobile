@@ -9,6 +9,8 @@ import me.vladcip.guessthecountry.testing.FakeCountryRepository
 import me.vladcip.guessthecountry.testing.FakePlayerProgressRepository
 import me.vladcip.guessthecountry.testing.FakeToday
 import kotlinx.coroutines.Dispatchers
+import me.vladcip.guessthecountry.ads.RewardedAdResult
+import me.vladcip.guessthecountry.testing.FakeAdService
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -26,6 +28,7 @@ class GameViewModelTest {
     private val countries = FakeCountryRepository()
     private val progress = FakePlayerProgressRepository()
     private val today = FakeToday()
+    private val ads = FakeAdService()
 
     @BeforeTest
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -33,7 +36,7 @@ class GameViewModelTest {
     @AfterTest
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = GameViewModel(countries, progress, GameFactory(random = Random(1)), today)
+    private fun viewModel() = GameViewModel(countries, progress, GameFactory(random = Random(1)), today, ads)
 
     private val GameViewModel.playing get() = assertIs<GameUiState.Playing>(state.value)
 
@@ -115,28 +118,77 @@ class GameViewModelTest {
     }
 
     @Test
-    fun `after 3 free games the next game needs an ad first`() {
+    fun `ads are initialized when the app starts`() {
+        viewModel()
+        assertEquals(1, ads.initializeCalls)
+    }
+
+    @Test
+    fun `free games do not show ads`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+        assertEquals(0, ads.adsShown)
+    }
+
+    @Test
+    fun `after 3 free games the next game plays an ad first`() {
         val vm = viewModel()
         vm.useFreeGames()
 
         vm.startNewGame()
         assertEquals(GameUiState.ShowingAd(GameMode.GuessTheCountry), vm.state.value)
+        assertEquals(1, ads.adsShown)
     }
 
     @Test
-    fun `watching an ad starts the game straight away and unlocks only that game`() {
+    fun `watching the ad to the end starts that game and unlocks only that game`() {
         val vm = viewModel()
         vm.useFreeGames()
 
         vm.watchAd(GameMode.GuessTheFlag)
         assertEquals(GameUiState.ShowingAd(GameMode.GuessTheFlag), vm.state.value)
-        vm.onAdWatched()
+        ads.finishAd(RewardedAdResult.Rewarded)
         assertEquals(GameMode.GuessTheFlag, vm.playing.game.mode)
         assertEquals(0, progress.progress.value.adCredits)
 
         vm.exitToMenu()
         vm.startNewGame()
         assertEquals(GameUiState.ShowingAd(GameMode.GuessTheCountry), vm.state.value)
+    }
+
+    @Test
+    fun `closing the ad early goes back to the menu without a game`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+
+        vm.watchAd(GameMode.GuessTheCountry)
+        ads.finishAd(RewardedAdResult.Dismissed)
+
+        assertEquals(GameUiState.Idle, vm.state.value)
+        assertEquals(0, progress.progress.value.adCredits)
+        assertEquals(3, progress.progress.value.gamesPlayed)
+    }
+
+    @Test
+    fun `if no ad is available the player still gets the game`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+
+        vm.watchAd(GameMode.GuessTheCountry)
+        ads.finishAd(RewardedAdResult.Unavailable)
+
+        assertEquals(GameMode.GuessTheCountry, vm.playing.game.mode)
+        assertEquals(4, progress.progress.value.gamesPlayed)
+    }
+
+    @Test
+    fun `leaving the ad screen returns to the menu`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+
+        vm.watchAd(GameMode.GuessTheCountry)
+        vm.exitToMenu()
+        assertEquals(GameUiState.Idle, vm.state.value)
     }
 
     @Test

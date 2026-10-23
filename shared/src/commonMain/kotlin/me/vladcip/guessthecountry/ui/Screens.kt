@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -67,12 +68,17 @@ fun MainMenuScreen(
 private fun ModeButton(mode: GameMode, label: String, onClick: (GameMode) -> Unit) =
     Button(onClick = { onClick(mode) }, modifier = Modifier.fillMaxWidth()) { Text(label, textAlign = TextAlign.Center) }
 
+/** Shown behind the full-screen ad while it loads and plays. */
 @Composable
-fun AdPlaceholderScreen(onAdFinished: () -> Unit, onMainMenu: () -> Unit) = ScreenWithMenuButton(onMainMenu) {
+fun AdScreen(onMainMenu: () -> Unit) = ScreenWithMenuButton(onMainMenu) {
     CenteredColumn {
-        Text("Advertisement", style = MaterialTheme.typography.headlineMedium)
-        Text("A short ad will play here. Ads aren't implemented yet.", textAlign = TextAlign.Center)
-        Button(onClick = onAdFinished, modifier = Modifier.fillMaxWidth()) { Text("Finish ad and play") }
+        CircularProgressIndicator()
+        Text("Loading a short ad…", textAlign = TextAlign.Center)
+        Text(
+            "Watch it to the end to unlock a free game.",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

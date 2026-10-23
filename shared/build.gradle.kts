@@ -19,11 +19,14 @@ kotlin {
         target.binaries.framework {
             baseName = "Shared"
             isStatic = true
+            // Swift implements the ads bridge (NativeRewardedAds), so its types must be visible.
+            export(project(":ads"))
         }
     }
 
     sourceSets {
         commonMain.dependencies {
+            api(project(":ads"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.ui)

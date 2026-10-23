@@ -46,10 +46,7 @@ fun App(
 
                     GameUiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
 
-                    is GameUiState.ShowingAd -> AdPlaceholderScreen(
-                        onAdFinished = gameViewModel::onAdWatched,
-                        onMainMenu = gameViewModel::exitToMenu,
-                    )
+                    is GameUiState.ShowingAd -> AdScreen(onMainMenu = gameViewModel::exitToMenu)
 
                     is GameUiState.Playing -> GameScreen(
                         game = state.game,

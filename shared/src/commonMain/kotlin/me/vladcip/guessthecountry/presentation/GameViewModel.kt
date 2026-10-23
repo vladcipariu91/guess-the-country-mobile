@@ -2,6 +2,8 @@ package me.vladcip.guessthecountry.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import me.vladcip.guessthecountry.ads.AdService
+import me.vladcip.guessthecountry.ads.RewardedAdResult
 import me.vladcip.guessthecountry.domain.game.Game
 import me.vladcip.guessthecountry.domain.game.GameFactory
 import me.vladcip.guessthecountry.domain.game.GameMode
@@ -25,7 +27,7 @@ sealed interface GameUiState {
     data object Idle : GameUiState
     data object Loading : GameUiState
 
-    /** Today's free games are used up; the (placeholder) ad unlocks a game of [mode]. */
+    /** Today's free games are used up; a rewarded ad is playing to unlock a game of [mode]. */
     data class ShowingAd(val mode: GameMode) : GameUiState
     data class Playing(val game: Game) : GameUiState
     data class Finished(val mode: GameMode, val score: Int, val maxScore: Int) : GameUiState
@@ -37,26 +39,21 @@ class GameViewModel(
     private val progressRepository: PlayerProgressRepository,
     private val gameFactory: GameFactory,
     private val todayProvider: TodayProvider,
+    private val adService: AdService,
 ) : ViewModel() {
     private val _state = MutableStateFlow<GameUiState>(GameUiState.Idle)
     val state: StateFlow<GameUiState> = _state.asStateFlow()
 
     private var startJob: Job? = null
 
+    init {
+        // Consent form (if needed) and ad preloading happen at launch, not when the player is waiting.
+        viewModelScope.launch { adService.initialize() }
+    }
+
     fun startNewGame(mode: GameMode) = launchStart { start(mode) }
 
-    fun watchAd(mode: GameMode) {
-        _state.value = GameUiState.ShowingAd(mode)
-    }
-
-    /** Placeholder until real ads exist: the ad screen calls this when the "ad" finishes. */
-    fun onAdWatched() {
-        val mode = (_state.value as? GameUiState.ShowingAd)?.mode ?: return
-        launchStart {
-            progressRepository.recordAdWatched()
-            start(mode)
-        }
-    }
+    fun watchAd(mode: GameMode) = launchStart { playAfterAd(mode) }
 
     fun guess(option: Country) = updateRound { it.guess(option) }
 
@@ -87,7 +84,7 @@ class GameViewModel(
         try {
             val today = todayProvider.today()
             if (!progressRepository.progress.first().canStartGame(today)) {
-                _state.value = GameUiState.ShowingAd(mode)
+                playAfterAd(mode)
                 return
             }
             val game = gameFactory.create(countryRepository.getAllCountries(), mode)
@@ -97,6 +94,18 @@ class GameViewModel(
             throw e
         } catch (e: Exception) {
             _state.value = GameUiState.Error(mode, e.message ?: "Couldn't start the game")
+        }
+    }
+
+    private suspend fun playAfterAd(mode: GameMode) {
+        _state.value = GameUiState.ShowingAd(mode)
+        when (adService.showRewardedAd()) {
+            // If no ad can be shown (offline, no fill), let them play rather than block them.
+            RewardedAdResult.Rewarded, RewardedAdResult.Unavailable -> {
+                progressRepository.recordAdWatched()
+                start(mode)
+            }
+            RewardedAdResult.Dismissed -> _state.value = GameUiState.Idle
         }
     }
 
