@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
+    id("gtc.design-tokens")
 }
 
 kotlin {
@@ -25,6 +26,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain {
+            kotlin.srcDir(tasks.named("generateDesignTokens"))
+        }
         commonMain.dependencies {
             api(project(":ads"))
             implementation(libs.compose.runtime)
@@ -53,6 +57,11 @@ kotlin {
             implementation(libs.turbine)
         }
     }
+}
+
+designTokens {
+    tokensFile = rootProject.layout.projectDirectory.file("design/tokens.json")
+    packageName = "me.vladcip.guessthecountry.designsystem.tokens"
 }
 
 room {
