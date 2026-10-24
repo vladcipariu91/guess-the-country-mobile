@@ -54,7 +54,7 @@ object DesignSystemExport {
         val letterSpacing: String?,
         val lineHeight: String?,
         val uppercase: Boolean,
-        val usage: String,
+        val usage: String?,
     )
 
     private class Colour(val name: String, val light: String, val dark: String, val usage: String)
@@ -128,7 +128,8 @@ object DesignSystemExport {
             letterSpacing = style["letterSpacingEm"]?.let { plain(it, "$path.letterSpacingEm") }?.takeIf { it != "0" },
             lineHeight = style["lineHeight"]?.let { plain(it, "$path.lineHeight") },
             uppercase = uppercase,
-            usage = listOfNotNull(usage(style, path), "Uppercase.".takeIf { uppercase }).joinToString(" "),
+            usage = listOfNotNull(usage(style, path), "Uppercase.".takeIf { uppercase })
+                .joinToString(" ").ifEmpty { null },
         )
     }
 
@@ -253,7 +254,7 @@ object DesignSystemExport {
                 put("fontWeight", JsonUnquotedLiteral(s.weight))
                 s.letterSpacing?.let { put("letterSpacing", "${it}em") }
                 s.lineHeight?.let { put("lineHeight", JsonUnquotedLiteral(it)) }
-                put("usage", s.usage)
+                s.usage?.let { put("usage", it) }
             }
         }))
     }

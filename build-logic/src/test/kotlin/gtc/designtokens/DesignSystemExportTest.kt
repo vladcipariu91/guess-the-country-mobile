@@ -112,7 +112,7 @@ class DesignSystemExportTest {
         val body = displayStyles.byName("body")
         assertFalse("letterSpacing" in body)
         assertFalse("lineHeight" in body)
-        assertEquals("", body.getValue("usage").jsonPrimitive.content)
+        assertFalse("usage" in body)
         val tag = labels.arr("styles").byName("mono-tag")
         assertEquals("Uppercase.", tag.getValue("usage").jsonPrimitive.content)
         assertEquals("0.16em", tag.getValue("letterSpacing").jsonPrimitive.content)
