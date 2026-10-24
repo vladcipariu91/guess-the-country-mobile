@@ -35,6 +35,7 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.ui)
             implementation(libs.compose.material3)
+            implementation(libs.compose.components.resources)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.runtime.compose)
@@ -62,6 +63,11 @@ kotlin {
 designTokens {
     tokensFile = rootProject.layout.projectDirectory.file("design/tokens.json")
     packageName = "me.vladcip.guessthecountry.designsystem.tokens"
+}
+
+compose.resources {
+    packageOfResClass = "me.vladcip.guessthecountry.resources"
+    publicResClass = false
 }
 
 room {
