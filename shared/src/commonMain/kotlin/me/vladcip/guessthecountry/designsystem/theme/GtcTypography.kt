@@ -57,15 +57,16 @@ private fun TypeToken.toTextStyle(display: FontFamily, mono: FontFamily): TextSt
 
 /**
  * Builds the typography from the bundled static fonts (static instances avoid variable-font gaps on
- * Android API 24-25). Bricolage ships 400, 600 and 800; the 700 weight used by buttons maps to the
- * 600 file.
+ * Android API 24-25). Bricolage ships 400, 600 and 800 only. The 700 weight (button, optionLabel,
+ * captionStrong) deliberately maps to the 800 file: the design canvas loads just those three faces,
+ * and CSS font matching resolves 700 to the next heavier face, so the approved design renders 700 at 800.
  */
 @Composable
 fun rememberGtcTypography(): GtcTypography {
     val display = FontFamily(
         Font(Res.font.bricolage_grotesque_regular, FontWeight.W400),
         Font(Res.font.bricolage_grotesque_semibold, FontWeight.W600),
-        Font(Res.font.bricolage_grotesque_semibold, FontWeight.W700),
+        Font(Res.font.bricolage_grotesque_extrabold, FontWeight.W700),
         Font(Res.font.bricolage_grotesque_extrabold, FontWeight.W800),
     )
     val mono = FontFamily(Font(Res.font.ibm_plex_mono_medium, FontWeight.W500))
