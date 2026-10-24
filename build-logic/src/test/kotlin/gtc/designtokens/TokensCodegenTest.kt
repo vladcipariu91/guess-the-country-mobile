@@ -85,6 +85,33 @@ class TokensCodegenTest {
     }
 
     @Test
+    fun `dark only colour reports missing light`() {
+        val e = assertFailsWith<TokensException> {
+            generate("""{"color":{"gold":{"dark":"#000000"}}}""")
+        }
+        assertContains(e.message.orEmpty(), "color.gold")
+        assertContains(e.message.orEmpty(), "missing \"light\"")
+    }
+
+    @Test
+    fun `misspelled light key reports missing light`() {
+        val e = assertFailsWith<TokensException> {
+            generate("""{"color":{"gold":{"ligth":"#D4A85A"}}}""")
+        }
+        assertContains(e.message.orEmpty(), "color.gold")
+        assertContains(e.message.orEmpty(), "missing \"light\"")
+    }
+
+    @Test
+    fun `empty colour object names its path`() {
+        val e = assertFailsWith<TokensException> {
+            generate("""{"color":{"cover":{"navy":{}}}}""")
+        }
+        assertContains(e.message.orEmpty(), "color.cover.navy")
+        assertContains(e.message.orEmpty(), "missing \"light\"")
+    }
+
+    @Test
     fun `type style with unknown font names the path`() {
         val e = assertFailsWith<TokensException> {
             generate("""{"type":{"body":{"font":"serif","size":15,"weight":400}}}""")

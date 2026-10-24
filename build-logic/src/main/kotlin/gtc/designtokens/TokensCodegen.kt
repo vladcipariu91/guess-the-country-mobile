@@ -76,7 +76,10 @@ object TokensCodegen {
                 val childPath = path + key
                 val dotted = "color." + childPath.joinToString(".")
                 val obj = value as? JsonObject ?: throw TokensException("$dotted: expected an object")
-                if ("light" in obj) {
+                // A node with no children or any primitive child is meant as a colour, not a group.
+                val isLeaf = "light" in obj || obj.isEmpty() || obj.values.any { it is JsonPrimitive }
+                if (isLeaf) {
+                    if ("light" !in obj) throw TokensException("$dotted: missing \"light\"")
                     val light = hexColor(obj["light"], "$dotted.light")
                     val dark = obj["dark"]?.let { hexColor(it, "$dotted.dark") } ?: light
                     entries += pascal(childPath, "color") to
