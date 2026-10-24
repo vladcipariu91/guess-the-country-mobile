@@ -10,7 +10,7 @@
 1. Edit `design/tokens.json`. Every colour needs a `usage` sentence; the export fails without one.
 2. Build and run the app: `./gradlew :shared:testAndroidHostTest` includes the contrast test on all four covers.
 3. Export for Claude Design: `./gradlew :shared:exportDesignSystem` writes `shared/build/designSystem/project/` (`tokens.json`, `tokens.css`, `fonts/`).
-4. Republish those files to the Claude Design project. Ask Claude Code to "republish the design system tokens", or copy them in yourself.
+4. Republish those files to the Claude Design project. Ask Claude Code to "republish the design system tokens", or copy them in yourself. Only `tokens.json`, `tokens.css` and `fonts/` are generated. The project's brand book (`README.md`), component previews, cover and index were written by hand and live only in Claude Design. Update them there when the design changes.
 5. Record what was published:
 
    ```bash
