@@ -1,6 +1,7 @@
 package me.vladcip.guessthecountry.designsystem
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import me.vladcip.guessthecountry.designsystem.theme.contrastRatio
 import me.vladcip.guessthecountry.designsystem.theme.gtcColors
 import me.vladcip.guessthecountry.domain.passport.PassportCover
@@ -48,6 +49,29 @@ class ContrastTest {
             }
         }
         assertTrue(failures.isEmpty(), "Contrast failures:\n" + failures.joinToString("\n"))
+    }
+
+    @Test
+    fun `text on answer option fills passes on every cover`() {
+        val failures = mutableListOf<String>()
+        for (cover in PassportCover.entries) {
+            for (dark in listOf(false, true)) {
+                val c = gtcColors(cover, dark)
+                val mode = if (dark) "dark" else "light"
+                // Dimmed and Eliminated rows draw onCoverDisabled text; it is disabled and exempt, so not asserted here.
+                fun check(name: String, fg: Color, fill: Color) {
+                    val bg = fill.compositeOver(c.cover)
+                    val ratio = contrastRatio(fg, bg)
+                    if (ratio < 4.5) failures += "$cover/$mode $name = ${(ratio * 100).roundToInt() / 100.0} (< 4.5)"
+                }
+                check("Default onCover/optionOnCover", c.onCover, c.optionOnCover)
+                check("WrongGuess onCover/optionOnCoverStrong", c.onCover, c.optionOnCoverStrong)
+                check("WrongGuess stamp.usedText/optionOnCoverStrong", c.stamp.usedText, c.optionOnCoverStrong)
+                check("Correct ink/paper", c.ink, c.paper)
+                check("Correct stamp.tier4/paper", c.stamp.tier4, c.paper)
+            }
+        }
+        assertTrue(failures.isEmpty(), "Answer-option contrast failures:\n" + failures.joinToString("\n"))
     }
 
     @Test
