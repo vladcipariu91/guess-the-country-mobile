@@ -73,3 +73,7 @@ dependencies {
     add("kspIosArm64", libs.room.compiler)
     add("kspIosSimulatorArm64", libs.room.compiler)
 }
+
+tasks.named("check") {
+    dependsOn("checkNoRawDesignValues", "checkTokensPublished")
+}
