@@ -114,8 +114,12 @@ data class StampSpec(
  * capped at [maxWidth], or [RECT_MAX_WIDTH_FACTOR] x [size] when unspecified.
  *
  * In light mode ink multiplies into the page beneath at [Opacity.Stamp]; in dark mode it is drawn
- * as a plain overlay. The blend only reaches what is drawn in the same layer, so it is lost when an
- * ancestor puts the stamp in its own graphics layer (as `stampSlam` does while it animates).
+ * as a plain overlay. A plain `graphicsLayer` (scale, rotation, translation, as `stampSlam` uses)
+ * does not isolate the blend: Compose only renders such a layer offscreen when it needs to (for
+ * example alpha below 1 or a render effect), so the stamp still multiplies into the paper beneath.
+ * Checked on an Android device with a settled `stampSlam` over a paper card (the text under the ring
+ * stays dark, as with an unwrapped stamp). An ancestor layer that does go offscreen would lose the
+ * blend, and iOS has not been checked on a device.
  */
 @Composable
 fun Stamp(
@@ -238,6 +242,9 @@ private const val POSTMARK_LINE_MAX = 56f
 /** The smallest a title is shrunk to (as a fraction of its canvas size) before it is ellipsised. */
 internal const val MIN_TITLE_SCALE = 0.6f
 
+/** Shrinks fitted text a further 3% so it clears the edge once re-measured. */
+private const val FIT_SLACK = 0.97f
+
 /** Rectangle and pill stamps are at most this many times [Size.StampMedium]-relative `size` wide. */
 internal const val RECT_MAX_WIDTH_FACTOR = 1.5f
 
@@ -325,7 +332,9 @@ private class StampPen(
         val maxPx = maxWidthUnits * scale
         val natural = layout.size.width.toFloat()
         if (natural > maxPx) {
-            val fit = fitTitleScale(natural, maxPx, MIN_TITLE_SCALE)
+            // Glyph advances do not scale exactly with font size (hinting, pixel snapping), so a text fitted
+            // to the very edge can measure a hair too wide at its new size and be ellipsised needlessly.
+            val fit = (fitTitleScale(natural, maxPx, MIN_TITLE_SCALE) * FIT_SLACK).coerceAtLeast(MIN_TITLE_SCALE)
             layout = measurer.measure(
                 text,
                 style(base, sizeUnits * fit, trackingUnits * fit),
