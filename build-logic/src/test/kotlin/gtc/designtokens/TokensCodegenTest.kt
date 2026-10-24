@@ -3,6 +3,7 @@ package gtc.designtokens
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -54,11 +55,39 @@ class TokensCodegenTest {
 
     @Test
     fun `dash tilt and opacity sections are emitted`() {
-        val out = generate("""{"dash":{"length":6},"tilt":{"usedStamp":-6},"opacity":{"dimmedFlag":0.6}}""")
+        val out = generate("""{"dash":{"lengthFactor":2,"gapFactor":1},"tilt":{"usedStamp":-6},"opacity":{"dimmedFlag":0.6}}""")
         assertContains(out, "internal object Dash {")
-        assertContains(out, "val Length = 6.dp")
+        assertContains(out, "const val LengthFactor: Float = 2f")
+        assertContains(out, "const val GapFactor: Float = 1f")
         assertContains(out, "const val UsedStamp: Float = -6f")
         assertContains(out, "const val DimmedFlag: Float = 0.6f")
+    }
+
+    @Test
+    fun `all lists every entry of each listed section`() {
+        val out = generate(
+            """{"color":{"cover":{"navy":{"light":"#16213D"}},"gold":{"light":"#D4A85A"}},""" +
+                """"type":{"body":{"font":"display","size":15,"weight":400},"monoTag":{"font":"mono","size":11,"weight":500}},""" +
+                """"space":{"s2":2,"s4":4},"size":{"tile":76},"radius":{"r4":4,"full":999},"border":{"b1":1,"b1_5":1.5}}""",
+        )
+        assertContains(out, "val All: List<Pair<String, ColorToken>> = listOf(\n        \"CoverNavy\" to CoverNavy,\n        \"Gold\" to Gold,\n    )")
+        assertContains(out, "val All: List<Pair<String, TypeToken>> = listOf(\n        \"Body\" to Body,\n        \"MonoTag\" to MonoTag,\n    )")
+        assertContains(out, "val All: List<Pair<String, Dp>> = listOf(\n        \"S2\" to S2,\n        \"S4\" to S4,\n    )")
+        assertContains(out, "\"Tile\" to Tile,")
+        assertContains(out, "\"R4\" to R4,\n        \"Full\" to Full,")
+        assertContains(out, "\"B1\" to B1,\n        \"B1_5\" to B1_5,")
+    }
+
+    @Test
+    fun `all matches every declared token in the real file`() {
+        val out = generate(File("../design/tokens.json").readText())
+        for (objectName in listOf("ColorTokens", "TypeTokens", "Space", "Size", "Radius", "Border")) {
+            val body = out.substringAfter("internal object $objectName {").substringBefore("\n}\n")
+            val declared = Regex("(?m)^    val (\\w+) = ").findAll(body).map { it.groupValues[1] }.toList()
+            val listed = Regex("(?m)^        \"(\\w+)\" to \\1,").findAll(body).map { it.groupValues[1] }.toList()
+            assertTrue(declared.isNotEmpty(), "$objectName has tokens")
+            assertEquals(declared, listed, "$objectName.All lists every token in order")
+        }
     }
 
     @Test

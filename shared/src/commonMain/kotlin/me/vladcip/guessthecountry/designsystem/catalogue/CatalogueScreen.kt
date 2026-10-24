@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import me.vladcip.guessthecountry.designsystem.components.AnswerOption
@@ -62,7 +61,8 @@ import me.vladcip.guessthecountry.designsystem.motion.StampHaptic
 import me.vladcip.guessthecountry.designsystem.motion.StampSlamState
 import me.vladcip.guessthecountry.designsystem.motion.stampSlam
 import me.vladcip.guessthecountry.designsystem.theme.GtcTheme
-import me.vladcip.guessthecountry.designsystem.theme.GtcTypography
+import me.vladcip.guessthecountry.designsystem.theme.rememberGtcFontFamilies
+import me.vladcip.guessthecountry.designsystem.theme.toTextStyle
 import me.vladcip.guessthecountry.designsystem.theme.coverColor
 import me.vladcip.guessthecountry.designsystem.tokens.Border
 import me.vladcip.guessthecountry.designsystem.tokens.ColorToken
@@ -75,7 +75,6 @@ import me.vladcip.guessthecountry.designsystem.tokens.Radius
 import me.vladcip.guessthecountry.designsystem.tokens.Size
 import me.vladcip.guessthecountry.designsystem.tokens.Space
 import me.vladcip.guessthecountry.designsystem.tokens.Tilt
-import me.vladcip.guessthecountry.designsystem.tokens.TypeToken
 import me.vladcip.guessthecountry.designsystem.tokens.TypeTokens
 import me.vladcip.guessthecountry.domain.passport.PassportCover
 
@@ -213,47 +212,7 @@ private fun PaperPanel(content: @Composable () -> Unit) {
 // Tokens
 // ---------------------------------------------------------------------------------------------
 
-private val colorTokens: List<Pair<String, ColorToken>> = listOf(
-    "CoverBurgundy" to ColorTokens.CoverBurgundy,
-    "CoverNavy" to ColorTokens.CoverNavy,
-    "CoverGreen" to ColorTokens.CoverGreen,
-    "CoverBlack" to ColorTokens.CoverBlack,
-    "Gold" to ColorTokens.Gold,
-    "GoldLight" to ColorTokens.GoldLight,
-    "GoldLine" to ColorTokens.GoldLine,
-    "GoldLineSoft" to ColorTokens.GoldLineSoft,
-    "GoldTrack" to ColorTokens.GoldTrack,
-    "Paper" to ColorTokens.Paper,
-    "Surface" to ColorTokens.Surface,
-    "Ink" to ColorTokens.Ink,
-    "InkMuted" to ColorTokens.InkMuted,
-    "InkSoft" to ColorTokens.InkSoft,
-    "InkLabel" to ColorTokens.InkLabel,
-    "Rule" to ColorTokens.Rule,
-    "OutlineDashed" to ColorTokens.OutlineDashed,
-    "PlaceholderLine" to ColorTokens.PlaceholderLine,
-    "PlaceholderText" to ColorTokens.PlaceholderText,
-    "PlaceholderCaption" to ColorTokens.PlaceholderCaption,
-    "OnCover" to ColorTokens.OnCover,
-    "OnCoverStrong" to ColorTokens.OnCoverStrong,
-    "OnCoverMuted" to ColorTokens.OnCoverMuted,
-    "OnCoverDisabled" to ColorTokens.OnCoverDisabled,
-    "OnCoverTrack" to ColorTokens.OnCoverTrack,
-    "CoverSpine" to ColorTokens.CoverSpine,
-    "SwatchRing" to ColorTokens.SwatchRing,
-    "GlobeHighlight" to ColorTokens.GlobeHighlight,
-    "GlobeShade" to ColorTokens.GlobeShade,
-    "OptionOnCover" to ColorTokens.OptionOnCover,
-    "OptionOnCoverStrong" to ColorTokens.OptionOnCoverStrong,
-    "StampTier5" to ColorTokens.StampTier5,
-    "StampTier4" to ColorTokens.StampTier4,
-    "StampTier3" to ColorTokens.StampTier3,
-    "StampTier2" to ColorTokens.StampTier2,
-    "StampTier1" to ColorTokens.StampTier1,
-    "StampMissed" to ColorTokens.StampMissed,
-    "StampUsedBorder" to ColorTokens.StampUsedBorder,
-    "StampUsedText" to ColorTokens.StampUsedText,
-)
+private val colorTokens: List<Pair<String, ColorToken>> = ColorTokens.All
 
 private fun Color.hex(): String {
     val argb = toArgb()
@@ -304,46 +263,19 @@ private fun ColourSection() {
     }
 }
 
-private class TypeRow(val name: String, val token: TypeToken, val style: (GtcTypography) -> TextStyle)
-
-private val typeRows: List<TypeRow> = listOf(
-    TypeRow("ScoreDisplay", TypeTokens.ScoreDisplay) { it.scoreDisplay },
-    TypeRow("CountDisplay", TypeTokens.CountDisplay) { it.countDisplay },
-    TypeRow("SplashTitle", TypeTokens.SplashTitle) { it.splashTitle },
-    TypeRow("ScreenTitle", TypeTokens.ScreenTitle) { it.screenTitle },
-    TypeRow("ModeTitle", TypeTokens.ModeTitle) { it.modeTitle },
-    TypeRow("BrandTitle", TypeTokens.BrandTitle) { it.brandTitle },
-    TypeRow("CardTitle", TypeTokens.CardTitle) { it.cardTitle },
-    TypeRow("ScoreSuffix", TypeTokens.ScoreSuffix) { it.scoreSuffix },
-    TypeRow("Button", TypeTokens.Button) { it.button },
-    TypeRow("OptionLabel", TypeTokens.OptionLabel) { it.optionLabel },
-    TypeRow("Body", TypeTokens.Body) { it.body },
-    TypeRow("BodySmall", TypeTokens.BodySmall) { it.bodySmall },
-    TypeRow("Flag", TypeTokens.Flag) { it.flag },
-    TypeRow("Caption", TypeTokens.Caption) { it.caption },
-    TypeRow("CaptionStrong", TypeTokens.CaptionStrong) { it.captionStrong },
-    TypeRow("MonoBrand", TypeTokens.MonoBrand) { it.monoBrand },
-    TypeRow("MonoLabel", TypeTokens.MonoLabel) { it.monoLabel },
-    TypeRow("MonoTag", TypeTokens.MonoTag) { it.monoTag },
-    TypeRow("MonoMicro", TypeTokens.MonoMicro) { it.monoMicro },
-    TypeRow("MonoTile", TypeTokens.MonoTile) { it.monoTile },
-    TypeRow("MonoCover", TypeTokens.MonoCover) { it.monoCover },
-    TypeRow("CoverTitle", TypeTokens.CoverTitle) { it.coverTitle },
-)
-
 @Composable
 private fun TypeSection() {
     val colors = GtcTheme.colors
     val typography = GtcTheme.typography
-    Section("Type scale (${typeRows.size})") {
-        typeRows.forEach { row ->
-            val token = row.token
-            val sample = if (token.uppercase) row.name.uppercase() else row.name
+    val fonts = rememberGtcFontFamilies()
+    Section("Type scale (${TypeTokens.All.size})") {
+        TypeTokens.All.forEach { (name, token) ->
+            val sample = if (token.uppercase) name.uppercase() else name
             Column(verticalArrangement = Arrangement.spacedBy(Space.S2)) {
-                Text(sample, style = row.style(typography), color = colors.onCover)
+                Text(sample, style = token.toTextStyle(fonts.display, fonts.mono), color = colors.onCover)
                 val lineHeight = token.lineHeight?.let { " / lh $it" } ?: ""
                 Text(
-                    "${row.name}  ${token.font.name} ${token.sizeSp.toInt()}sp w${token.weight} ls ${token.letterSpacingEm}em$lineHeight${if (token.uppercase) " UPPER" else ""}",
+                    "$name  ${token.font.name} ${token.sizeSp.toInt()}sp w${token.weight} ls ${token.letterSpacingEm}em$lineHeight${if (token.uppercase) " UPPER" else ""}",
                     style = typography.monoMicro,
                     color = colors.onCoverMuted,
                 )
@@ -352,41 +284,13 @@ private fun TypeSection() {
     }
 }
 
-private val spaceTokens: List<Pair<String, Dp>> = listOf(
-    "S2" to Space.S2, "S3" to Space.S3, "S4" to Space.S4, "S6" to Space.S6, "S8" to Space.S8,
-    "S10" to Space.S10, "S12" to Space.S12, "S14" to Space.S14, "S16" to Space.S16, "S18" to Space.S18,
-    "S20" to Space.S20, "S22" to Space.S22, "S24" to Space.S24, "S32" to Space.S32, "S44" to Space.S44,
-    "S48" to Space.S48,
-)
-
-private val radiusTokens: List<Pair<String, Dp>> = listOf(
-    "R4" to Radius.R4, "R6" to Radius.R6, "R8" to Radius.R8, "R10" to Radius.R10, "R12" to Radius.R12,
-    "R14" to Radius.R14, "R16" to Radius.R16, "Full" to Radius.Full,
-)
-
-private val borderTokens: List<Pair<String, Dp>> = listOf(
-    "B1" to Border.B1, "B1_5" to Border.B1_5, "B2" to Border.B2, "B2_5" to Border.B2_5,
-    "B3" to Border.B3, "B4" to Border.B4, "B5" to Border.B5,
-)
-
-private val sizeTokens: List<Pair<String, Dp>> = listOf(
-    "TouchMin" to Size.TouchMin, "Option" to Size.Option, "Button" to Size.Button, "Swatch" to Size.Swatch,
-    "Emblem" to Size.Emblem, "PassportWidth" to Size.PassportWidth, "PassportHeight" to Size.PassportHeight,
-    "Globe" to Size.Globe, "GlobeRing" to Size.GlobeRing, "StampLarge" to Size.StampLarge,
-    "StampMedium" to Size.StampMedium, "StampSmall" to Size.StampSmall, "Tile" to Size.Tile,
-    "Slot" to Size.Slot, "Chip" to Size.Chip, "Progress" to Size.Progress,
-    "LoadingBarWidth" to Size.LoadingBarWidth, "LoadingBarHeight" to Size.LoadingBarHeight,
-    "IconSmall" to Size.IconSmall, "Icon" to Size.Icon, "TileFlag" to Size.TileFlag, "Spine" to Size.Spine,
-    "SwatchRow" to Size.SwatchRow, "CoverGlobe" to Size.CoverGlobe,
-)
-
 @Composable
 private fun MetricsSection() {
     val colors = GtcTheme.colors
     val typography = GtcTheme.typography
     Section("Spacing, radius, border, size") {
         SubLabel("Space")
-        spaceTokens.forEach { (name, value) ->
+        Space.All.forEach { (name, value) ->
             Row(horizontalArrangement = Arrangement.spacedBy(Space.S12), verticalAlignment = Alignment.CenterVertically) {
                 Text("$name ${value.value.fmt()}", style = typography.monoMicro, color = colors.onCoverMuted, modifier = Modifier.width(72.dp))
                 Box(Modifier.height(Space.S12).width(value).background(colors.gold))
@@ -394,7 +298,7 @@ private fun MetricsSection() {
         }
         SubLabel("Radius")
         Row(horizontalArrangement = Arrangement.spacedBy(Space.S8)) {
-            radiusTokens.forEach { (name, value) ->
+            Radius.All.forEach { (name, value) ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.S4)) {
                     Box(Modifier.size(Size.Chip).border(Border.B2, colors.gold, RoundedCornerShape(value)))
                     Text(name, style = typography.monoMicro, color = colors.onCoverMuted)
@@ -402,7 +306,7 @@ private fun MetricsSection() {
             }
         }
         SubLabel("Border")
-        borderTokens.forEach { (name, value) ->
+        Border.All.forEach { (name, value) ->
             Row(horizontalArrangement = Arrangement.spacedBy(Space.S12), verticalAlignment = Alignment.CenterVertically) {
                 Text("$name ${value.value.fmt()}", style = typography.monoMicro, color = colors.onCoverMuted, modifier = Modifier.width(72.dp))
                 Box(Modifier.weight(1f).height(value).background(colors.gold))
@@ -410,13 +314,13 @@ private fun MetricsSection() {
         }
         SubLabel("Size (dp)")
         Text(
-            sizeTokens.joinToString("   ") { (name, value) -> "$name ${value.value.fmt()}" },
+            Size.All.joinToString("   ") { (name, value) -> "$name ${value.value.fmt()}" },
             style = typography.monoMicro,
             color = colors.onCoverMuted,
         )
         SubLabel("Other")
         Text(
-            "Elevation.Passport ${Elevation.Passport.value.fmt()}   Dash ${Dash.Length.value.fmt()}/${Dash.Gap.value.fmt()}   " +
+            "Elevation.Passport ${Elevation.Passport.value.fmt()}   Dash ${Dash.LengthFactor.fmt()}x/${Dash.GapFactor.fmt()}x stroke   " +
                 "Tilt.UsedStamp ${Tilt.UsedStamp}   Opacity DimmedFlag ${Opacity.DimmedFlag} Stamp ${Opacity.Stamp} Graticule ${Opacity.Graticule}   " +
                 "Motion slam ${Motion.StampSlamMillis}ms from ${Motion.StampSlamStartScale}x, globe ${Motion.GlobeRevolutionMillis}ms, loading ${Motion.LoadingBarMillis}ms",
             style = typography.monoMicro,

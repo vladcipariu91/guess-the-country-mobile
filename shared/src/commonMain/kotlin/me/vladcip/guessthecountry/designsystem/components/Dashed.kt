@@ -12,8 +12,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import me.vladcip.guessthecountry.designsystem.tokens.Dash
 
-private fun DrawScope.dashEffect(): PathEffect =
-    PathEffect.dashPathEffect(floatArrayOf(Dash.Length.toPx(), Dash.Gap.toPx()))
+/** Dashes scale with the stroke, as a browser's `border: dashed` does: [Dash.LengthFactor] x and [Dash.GapFactor] x the width. */
+private fun dashEffect(strokePx: Float): PathEffect =
+    PathEffect.dashPathEffect(floatArrayOf(strokePx * Dash.LengthFactor, strokePx * Dash.GapFactor))
 
 /** Draws a dashed rounded border of [width] inside the bounds of the modified element. */
 internal fun Modifier.dashedBorder(color: Color, width: Dp, radius: Dp): Modifier = drawBehind {
@@ -24,7 +25,7 @@ internal fun Modifier.dashedBorder(color: Color, width: Dp, radius: Dp): Modifie
         topLeft = Offset(inset, inset),
         size = Size(size.width - stroke, size.height - stroke),
         cornerRadius = CornerRadius(radius.toPx() - inset),
-        style = Stroke(width = stroke, pathEffect = dashEffect()),
+        style = Stroke(width = stroke, pathEffect = dashEffect(stroke)),
     )
 }
 
@@ -36,6 +37,6 @@ internal fun Modifier.dashedDivider(color: Color, width: Dp): Modifier = drawBeh
         start = Offset(0f, y),
         end = Offset(size.width, y),
         strokeWidth = width.toPx(),
-        pathEffect = dashEffect(),
+        pathEffect = dashEffect(width.toPx()),
     )
 }

@@ -51,7 +51,7 @@ data class GtcTypography(
     val coverTitle: TextStyle,
 )
 
-private fun TypeToken.toTextStyle(display: FontFamily, mono: FontFamily): TextStyle = TextStyle(
+internal fun TypeToken.toTextStyle(display: FontFamily, mono: FontFamily): TextStyle = TextStyle(
     fontFamily = if (font == FontRole.Mono) mono else display,
     fontSize = sizeSp.sp,
     fontWeight = FontWeight(weight),
@@ -59,14 +59,17 @@ private fun TypeToken.toTextStyle(display: FontFamily, mono: FontFamily): TextSt
     lineHeight = lineHeight?.let { (sizeSp * it).sp } ?: TextUnit.Unspecified,
 )
 
+/** The display (Bricolage Grotesque) and mono (IBM Plex Mono) families, loaded from the bundled static fonts. */
+internal class GtcFontFamilies(val display: FontFamily, val mono: FontFamily)
+
 /**
- * Builds the typography from the bundled static fonts (static instances avoid variable-font gaps on
- * Android API 24-25). Bricolage ships 400, 600 and 800 only. The 700 weight (button, optionLabel,
- * captionStrong) deliberately maps to the 800 file: the design canvas loads just those three faces,
- * and CSS font matching resolves 700 to the next heavier face, so the approved design renders 700 at 800.
+ * Loads the bundled static fonts (static instances avoid variable-font gaps on Android API 24-25).
+ * Bricolage ships 400, 600 and 800 only. The 700 weight (button, optionLabel, captionStrong)
+ * deliberately maps to the 800 file: the design canvas loads just those three faces, and CSS font
+ * matching resolves 700 to the next heavier face, so the approved design renders 700 at 800.
  */
 @Composable
-fun rememberGtcTypography(): GtcTypography {
+internal fun rememberGtcFontFamilies(): GtcFontFamilies {
     val display = FontFamily(
         Font(Res.font.bricolage_grotesque_regular, FontWeight.W400),
         Font(Res.font.bricolage_grotesque_semibold, FontWeight.W600),
@@ -74,6 +77,15 @@ fun rememberGtcTypography(): GtcTypography {
         Font(Res.font.bricolage_grotesque_extrabold, FontWeight.W800),
     )
     val mono = FontFamily(Font(Res.font.ibm_plex_mono_medium, FontWeight.W500))
+    return remember(display, mono) { GtcFontFamilies(display, mono) }
+}
+
+/** Builds the typography from [rememberGtcFontFamilies]. */
+@Composable
+fun rememberGtcTypography(): GtcTypography {
+    val families = rememberGtcFontFamilies()
+    val display = families.display
+    val mono = families.mono
     return remember(display, mono) {
         GtcTypography(
             scoreDisplay = TypeTokens.ScoreDisplay.toTextStyle(display, mono),

@@ -46,23 +46,40 @@ object TokensCodegen {
             appendLine("    val uppercase: Boolean,")
             appendLine(")")
             appendLine()
-            appendObject("ColorTokens", colorEntries(section(root, "color")))
-            appendObject("TypeTokens", typeEntries(section(root, "type")))
-            appendObject("Space", dpEntries(root, "space"))
-            appendObject("Size", dpEntries(root, "size"))
-            appendObject("Radius", dpEntries(root, "radius"))
-            appendObject("Border", dpEntries(root, "border"))
+            appendObject("ColorTokens", colorEntries(section(root, "color")), allType = "ColorToken")
+            appendObject("TypeTokens", typeEntries(section(root, "type")), allType = "TypeToken")
+            appendObject("Space", dpEntries(root, "space"), allType = "Dp")
+            appendObject("Size", dpEntries(root, "size"), allType = "Dp")
+            appendObject("Radius", dpEntries(root, "radius"), allType = "Dp")
+            appendObject("Border", dpEntries(root, "border"), allType = "Dp")
             appendObject("Elevation", dpEntries(root, "elevation"))
-            appendObject("Dash", dpEntries(root, "dash"))
+            appendObject("Dash", floatEntries(root, "dash"))
             appendObject("Tilt", floatEntries(root, "tilt"))
             appendObject("Opacity", floatEntries(root, "opacity"))
             appendObject("Motion", motionEntries(section(root, "motion")), last = true)
         }
     }
 
-    private fun StringBuilder.appendObject(name: String, entries: List<String>, last: Boolean = false) {
+    private val declaredName = Regex("^val (\\w+) =")
+
+    /**
+     * Emits `internal object [name]`. With [allType] it also gets `val All`, a list pairing each
+     * token's property name with its value, so a catalogue can show every token without a hand copy.
+     */
+    private fun StringBuilder.appendObject(
+        name: String,
+        entries: List<String>,
+        last: Boolean = false,
+        allType: String? = null,
+    ) {
         appendLine("internal object $name {")
         entries.forEach { appendLine("    $it") }
+        if (allType != null) {
+            val names = entries.map { declaredName.find(it)!!.groupValues[1] }
+            appendLine("    val All: List<Pair<String, $allType>> = listOf(")
+            names.forEach { appendLine("        \"$it\" to $it,") }
+            appendLine("    )")
+        }
         appendLine("}")
         if (!last) appendLine()
     }
