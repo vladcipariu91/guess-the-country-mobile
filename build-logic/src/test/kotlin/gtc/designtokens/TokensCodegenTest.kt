@@ -53,6 +53,15 @@ class TokensCodegenTest {
     }
 
     @Test
+    fun `dash tilt and opacity sections are emitted`() {
+        val out = generate("""{"dash":{"length":6},"tilt":{"usedStamp":-6},"opacity":{"dimmedFlag":0.6}}""")
+        assertContains(out, "internal object Dash {")
+        assertContains(out, "val Length = 6.dp")
+        assertContains(out, "const val UsedStamp: Float = -6f")
+        assertContains(out, "const val DimmedFlag: Float = 0.6f")
+    }
+
+    @Test
     fun `type defaults are applied`() {
         val out = generate(
             """{"type":{"caption":{"font":"display","size":13,"weight":400}}}""",

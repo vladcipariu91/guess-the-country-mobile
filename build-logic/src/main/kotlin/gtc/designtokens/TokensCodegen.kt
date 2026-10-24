@@ -53,6 +53,9 @@ object TokensCodegen {
             appendObject("Radius", dpEntries(root, "radius"))
             appendObject("Border", dpEntries(root, "border"))
             appendObject("Elevation", dpEntries(root, "elevation"))
+            appendObject("Dash", dpEntries(root, "dash"))
+            appendObject("Tilt", floatEntries(root, "tilt"))
+            appendObject("Opacity", floatEntries(root, "opacity"))
             appendObject("Motion", motionEntries(section(root, "motion")), last = true)
         }
     }
@@ -127,6 +130,14 @@ object TokensCodegen {
             pascal(listOf(key), name) to "${number(value, "$name.$key")}.dp"
         }
         return declare(entries, name)
+    }
+
+    /** Unitless values that are always `Float`, e.g. rotation in degrees or an alpha from 0 to 1. */
+    private fun floatEntries(root: JsonObject, name: String): List<String> {
+        val entries = section(root, name).orEmpty().map { (key, value) ->
+            pascal(listOf(key), name) to "${floatLiteral(value, "$name.$key")}"
+        }
+        return declare(entries, name).map { it.replaceFirst("val ", "const val ").replaceFirst(" =", ": Float =") }
     }
 
     private fun motionEntries(motion: JsonObject?): List<String> =
