@@ -178,4 +178,14 @@ class TokensCodegenTest {
         assertContains(out, "package $pkg")
         assertTrue(out.startsWith("// GENERATED from design/tokens.json"))
     }
+
+    @Test
+    fun `codegen ignores usage`() {
+        val plain = generate("""{"color":{"gold":{"light":"#D4A85A"}},"type":{"body":{"font":"display","size":15,"weight":400}}}""")
+        val withUsage = generate(
+            """{"color":{"gold":{"light":"#D4A85A","usage":"Accent."}},""" +
+                """"type":{"body":{"font":"display","size":15,"weight":400,"usage":"Body copy."}}}""",
+        )
+        assertEquals(plain, withUsage)
+    }
 }

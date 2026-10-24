@@ -11,17 +11,12 @@ class TokensException(message: String) : RuntimeException(message)
 
 /** Turns the contents of `design/tokens.json` into one Kotlin source file of `internal` token objects. */
 object TokensCodegen {
-    private val fontRoles = mapOf("display" to "Display", "mono" to "Mono")
+    internal val fontRoles = mapOf("display" to "Display", "mono" to "Mono")
     private val keyPattern = Regex("[A-Za-z][A-Za-z0-9_]*")
     private val hexPattern = Regex("#([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?")
 
     fun generate(json: String, packageName: String): String {
-        val root = try {
-            Json.parseToJsonElement(json) as? JsonObject
-                ?: throw TokensException("tokens: expected a JSON object at the top level")
-        } catch (e: kotlinx.serialization.SerializationException) {
-            throw TokensException("tokens: invalid JSON (${e.message})")
-        }
+        val root = parseRoot(json)
 
         return buildString {
             appendLine("// GENERATED from design/tokens.json by :shared:generateDesignTokens. Do not edit.")
@@ -60,6 +55,14 @@ object TokensCodegen {
         }
     }
 
+    /** Parses the top-level object of `tokens.json`; shared with [DesignSystemExport]. */
+    internal fun parseRoot(json: String): JsonObject = try {
+        Json.parseToJsonElement(json) as? JsonObject
+            ?: throw TokensException("tokens: expected a JSON object at the top level")
+    } catch (e: kotlinx.serialization.SerializationException) {
+        throw TokensException("tokens: invalid JSON (${e.message})")
+    }
+
     private val declaredName = Regex("^val (\\w+) =")
 
     /**
@@ -84,13 +87,43 @@ object TokensCodegen {
         if (!last) appendLine()
     }
 
-    private fun section(root: JsonObject, name: String): JsonObject? {
+    internal fun section(root: JsonObject, name: String): JsonObject? {
         val element = root[name] ?: return null
         return element as? JsonObject ?: throw TokensException("$name: expected an object")
     }
 
     private fun colorEntries(color: JsonObject?): List<String> {
-        val entries = mutableListOf<Pair<String, String>>()
+        val entries = colorLeaves(color).map { leaf ->
+            val value = leaf.value()
+            pascal(leaf.path, "color") to
+                "ColorToken(light = ${composeColor(value.light)}, dark = ${composeColor(value.dark)})"
+        }
+        return declare(entries, "color")
+    }
+
+    /** A colour token found under `color`: its key [path] and the `{light, dark?, ...}` object. */
+    internal class ColorLeaf(val path: List<String>, val node: JsonObject) {
+        val dotted: String get() = "color." + path.joinToString(".")
+
+        fun value(): ColorValue {
+            if ("light" !in node) throw TokensException("$dotted: missing \"light\"")
+            val light = parseHex(node["light"], "$dotted.light")
+            val dark = node["dark"]?.let { parseHex(it, "$dotted.dark") } ?: light
+            return ColorValue(light, dark)
+        }
+    }
+
+    internal class ColorValue(val light: Hex, val dark: Hex)
+
+    /** `#RRGGBB` or `#RRGGBBAA` (CSS order) split into upper-case [rgb] and optional [alpha]. */
+    internal class Hex(val rgb: String, val alpha: String?) {
+        /** Lower-case CSS text, e.g. `#f4efe399`. */
+        fun css(): String = "#" + (rgb + (alpha ?: "")).lowercase()
+    }
+
+    /** Walks `color` depth-first, in file order, and returns every leaf colour token. */
+    internal fun colorLeaves(color: JsonObject?): List<ColorLeaf> {
+        val leaves = mutableListOf<ColorLeaf>()
         fun walk(node: JsonObject, path: List<String>) {
             for ((key, value) in node) {
                 val childPath = path + key
@@ -98,30 +131,22 @@ object TokensCodegen {
                 val obj = value as? JsonObject ?: throw TokensException("$dotted: expected an object")
                 // A node with no children or any primitive child is meant as a colour, not a group.
                 val isLeaf = "light" in obj || obj.isEmpty() || obj.values.any { it is JsonPrimitive }
-                if (isLeaf) {
-                    if ("light" !in obj) throw TokensException("$dotted: missing \"light\"")
-                    val light = hexColor(obj["light"], "$dotted.light")
-                    val dark = obj["dark"]?.let { hexColor(it, "$dotted.dark") } ?: light
-                    entries += pascal(childPath, "color") to
-                        "ColorToken(light = $light, dark = $dark)"
-                } else {
-                    walk(obj, childPath)
-                }
+                if (isLeaf) leaves += ColorLeaf(childPath, obj) else walk(obj, childPath)
             }
         }
         if (color != null) walk(color, emptyList())
-        return declare(entries, "color")
+        return leaves
     }
 
-    private fun hexColor(element: JsonElement?, path: String): String {
+    internal fun parseHex(element: JsonElement?, path: String): Hex {
         val text = (element as? JsonPrimitive)?.takeIf { it.isString }?.content
             ?: throw TokensException("$path: expected a colour string like \"#RRGGBB\"")
         val match = hexPattern.matchEntire(text)
             ?: throw TokensException("$path: invalid colour \"$text\" (expected #RRGGBB or #RRGGBBAA)")
-        val rgb = match.groupValues[1].uppercase()
-        val alpha = match.groupValues[2].uppercase().ifEmpty { "FF" }
-        return "Color(0x$alpha$rgb)"
+        return Hex(match.groupValues[1].uppercase(), match.groupValues[2].uppercase().ifEmpty { null })
     }
+
+    private fun composeColor(hex: Hex): String = "Color(0x${hex.alpha ?: "FF"}${hex.rgb})"
 
     private fun typeEntries(type: JsonObject?): List<String> {
         val entries = type.orEmpty().map { (key, value) ->
@@ -183,16 +208,17 @@ object TokensCodegen {
     }
 
     /** The plain decimal text of a JSON number, e.g. `2`, `1.5`, `-0.03`. */
-    private fun number(element: JsonElement?, path: String): String {
+    private fun number(element: JsonElement?, path: String): String = decimal(element, path).toPlainString()
+
+    internal fun decimal(element: JsonElement?, path: String): BigDecimal {
         val primitive = element as? JsonPrimitive
-        val decimal = primitive?.takeIf { !it.isString }?.content?.toBigDecimalOrNull()
+        return primitive?.takeIf { !it.isString }?.content?.toBigDecimalOrNull()
             ?: throw TokensException("$path: expected a number")
-        return decimal.toPlainString()
     }
 
     private fun floatLiteral(element: JsonElement?, path: String): String = number(element, path) + "f"
 
-    private fun intLiteral(element: JsonElement?, path: String): String {
+    internal fun intLiteral(element: JsonElement?, path: String): String {
         val text = number(element, path)
         if (BigDecimal(text).scale() > 0 || text.toIntOrNull() == null) {
             throw TokensException("$path: expected an integer")
@@ -200,7 +226,7 @@ object TokensCodegen {
         return text
     }
 
-    private fun booleanLiteral(element: JsonElement, path: String): String {
+    internal fun booleanLiteral(element: JsonElement, path: String): String {
         val primitive = element as? JsonPrimitive
         val value = primitive?.takeIf { !it.isString }?.content
         if (value != "true" && value != "false") throw TokensException("$path: expected true or false")

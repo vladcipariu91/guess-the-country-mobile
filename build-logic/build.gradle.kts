@@ -18,4 +18,6 @@ gradlePlugin {
 
 tasks.test {
     useJUnit()
+    // Tests read the real token file, so editing it must re-run them.
+    inputs.file("../design/tokens.json").withPropertyName("tokensFile")
 }
