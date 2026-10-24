@@ -64,9 +64,9 @@ fun CollectionTile(
                 )
                 Text(
                     text = "+$points",
-                    style = typography.monoTag,
+                    style = typography.monoTile,
                     color = stampInk,
-                    modifier = Modifier.padding(top = Space.S2),
+                    modifier = Modifier.padding(top = Space.S3),
                 )
             }
             Text(

@@ -27,6 +27,8 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import kotlin.math.PI
@@ -107,6 +109,10 @@ data class StampSpec(
  * border with [size] (their canvas look is at [Size.StampMedium]). [tiltDegrees] rotates the
  * drawing about its centre without changing its layout size.
  *
+ * Long text is fitted, never overprinted: titles shrink to a width that fits their shape (down to
+ * [MIN_TITLE_SCALE] of the canvas size) and then end in an ellipsis. Rectangle and pill stamps are
+ * capped at [maxWidth], or [RECT_MAX_WIDTH_FACTOR] x [size] when unspecified.
+ *
  * In light mode ink multiplies into the page beneath at [Opacity.Stamp]; in dark mode it is drawn
  * as a plain overlay. The blend only reaches what is drawn in the same layer, so it is lost when an
  * ancestor puts the stamp in its own graphics layer (as `stampSlam` does while it animates).
@@ -117,6 +123,7 @@ fun Stamp(
     modifier: Modifier = Modifier,
     size: Dp = Size.StampMedium,
     tiltDegrees: Float = 0f,
+    maxWidth: Dp = Dp.Unspecified,
 ) {
     val colors = GtcTheme.colors
     val typography = GtcTheme.typography
@@ -144,8 +151,12 @@ fun Stamp(
     val rectLook = rectLookOf(spec.style)
     if (rectLook != null) {
         val scale = size / Size.StampMedium
-        val body = remember(upper, scale, density, monoBase, titleBase, measurer) {
-            measureRect(upper, rectLook, scale, density, measurer, monoBase, if (rectLook.pill) typography.cardTitle else titleBase)
+        val cap = if (maxWidth == Dp.Unspecified) size * RECT_MAX_WIDTH_FACTOR else maxWidth
+        val body = remember(upper, scale, cap, density, monoBase, titleBase, measurer) {
+            measureRect(
+                upper, rectLook, scale, cap, density, measurer, monoBase,
+                if (rectLook.pill) typography.cardTitle else titleBase,
+            )
         }
         Canvas(modifier.then(semantic).size(with(density) { body.width.toDp() }, with(density) { body.height.toDp() })) {
             stampLayer(paint, tiltDegrees) { drawRectStamp(body, rectLook, ink) }
@@ -205,6 +216,7 @@ private const val RING_TEXT_SIZE = 8.6f
 private const val RING_TEXT_TRACKING = 1.6f
 private const val RING_TITLE_Y = 58f
 private const val RING_BOTTOM_Y = 75f
+private const val RING_BOTTOM_Y_LARGE = 76f // P-Correct; P-Stamps and P-Results use 75
 private const val RING_TITLE_SIZE = 14f
 private const val RING_TITLE_SIZE_LARGE = 15f
 private const val RING_BOTTOM_SIZE = 12f
@@ -212,6 +224,36 @@ private const val RING_BOTTOM_SIZE_LARGE = 13f
 private const val HEAVY_STROKE = 3.2f
 private const val FIRST_CLUE_STROKE = 2f
 private const val HAIRLINE = 1f
+
+// Widest a centred line may be, in viewBox units, before it is shrunk. Each is the room inside the
+// shape at that line's height, less a margin: ring = the r32 core (64 across); octagon = the inner
+// polygon (92 across at y=66); oval = 80% of the inner ellipse (136 across); postmark = the circle.
+private const val RING_LINE_MAX = 60f
+private const val OCTAGON_TITLE_MAX = 80f
+private const val OCTAGON_LINE_MAX = 88f
+private const val OVAL_TITLE_MAX = 108f
+private const val OVAL_LINE_MAX = 120f
+private const val POSTMARK_LINE_MAX = 56f
+
+/** The smallest a title is shrunk to (as a fraction of its canvas size) before it is ellipsised. */
+internal const val MIN_TITLE_SCALE = 0.6f
+
+/** Rectangle and pill stamps are at most this many times [Size.StampMedium]-relative `size` wide. */
+internal const val RECT_MAX_WIDTH_FACTOR = 1.5f
+
+/**
+ * The scale (1 = canvas size) at which a line of [textWidth] fits in [maxWidth]: 1 when it already
+ * fits, otherwise the ratio, but never below [minScale]. A result of [minScale] with text still
+ * wider than [maxWidth] means the text must also be ellipsised, see [needsEllipsis].
+ */
+internal fun fitTitleScale(textWidth: Float, maxWidth: Float, minScale: Float): Float = when {
+    textWidth <= 0f || textWidth <= maxWidth -> 1f
+    else -> max(minScale, maxWidth / textWidth)
+}
+
+/** Whether text of [textWidth] still overflows [maxWidth] after scaling by [scale] (0.1% float slack). */
+internal fun needsEllipsis(textWidth: Float, maxWidth: Float, scale: Float): Boolean =
+    textWidth * scale > maxWidth * 1.001f
 
 // Transit octagon (P-Stamps / P-Results), outer then inner, as x,y pairs.
 private val OctagonOuter = floatArrayOf(38f, 6f, 82f, 6f, 114f, 38f, 114f, 82f, 82f, 114f, 38f, 114f, 6f, 82f, 6f, 38f)
@@ -264,10 +306,35 @@ private class StampPen(
     private fun measure(text: String, style: TextStyle): TextLayoutResult =
         measurer.measure(text, style, softWrap = false, maxLines = 1)
 
-    /** Text centred on [x] with its baseline at [y]. */
-    fun label(text: String, x: Float, y: Float, sizeUnits: Float, isMono: Boolean, trackingUnits: Float = 0f) {
+    /**
+     * Text centred on [x] with its baseline at [y], at most [maxWidthUnits] wide: shrunk by
+     * [fitTitleScale] first, then ellipsised if the floor is not enough.
+     */
+    fun label(
+        text: String,
+        x: Float,
+        y: Float,
+        sizeUnits: Float,
+        isMono: Boolean,
+        trackingUnits: Float = 0f,
+        maxWidthUnits: Float = Float.POSITIVE_INFINITY,
+    ) {
         if (text.isBlank()) return
-        val layout = measure(text, style(if (isMono) mono else display, sizeUnits, trackingUnits))
+        val base = if (isMono) mono else display
+        var layout = measure(text, style(base, sizeUnits, trackingUnits))
+        val maxPx = maxWidthUnits * scale
+        val natural = layout.size.width.toFloat()
+        if (natural > maxPx) {
+            val fit = fitTitleScale(natural, maxPx, MIN_TITLE_SCALE)
+            layout = measurer.measure(
+                text,
+                style(base, sizeUnits * fit, trackingUnits * fit),
+                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
+                maxLines = 1,
+                constraints = Constraints(maxWidth = maxPx.toInt() + 1),
+            )
+        }
         scope.drawText(layout, ink, Offset(x * scale - layout.size.width / 2f, y * scale - layout.firstBaseline))
     }
 
@@ -343,31 +410,37 @@ private class StampPen(
 
     private fun ringCentre(spec: StampSpec, large: Boolean) {
         ringText(spec.topLine, RING_CENTER, RING_CENTER, RING_TEXT_RADIUS, RING_TEXT_SIZE, RING_TEXT_TRACKING)
-        label(spec.title, RING_CENTER, RING_TITLE_Y, if (large) RING_TITLE_SIZE_LARGE else RING_TITLE_SIZE, isMono = false)
-        label(spec.bottomLine, RING_CENTER, RING_BOTTOM_Y, if (large) RING_BOTTOM_SIZE_LARGE else RING_BOTTOM_SIZE, isMono = true)
+        label(
+            spec.title, RING_CENTER, RING_TITLE_Y, if (large) RING_TITLE_SIZE_LARGE else RING_TITLE_SIZE,
+            isMono = false, maxWidthUnits = RING_LINE_MAX,
+        )
+        label(
+            spec.bottomLine, RING_CENTER, if (large) RING_BOTTOM_Y_LARGE else RING_BOTTOM_Y,
+            if (large) RING_BOTTOM_SIZE_LARGE else RING_BOTTOM_SIZE, isMono = true, maxWidthUnits = RING_LINE_MAX,
+        )
     }
 
     fun transit(spec: StampSpec) {
         polygon(OctagonOuter, HEAVY_STROKE)
         polygon(OctagonInner, HAIRLINE)
-        label(spec.topLine, RING_CENTER, 44f, 9f, isMono = true, trackingUnits = 1.5f)
-        label(spec.title, RING_CENTER, 66f, 16f, isMono = false)
-        label(spec.bottomLine, RING_CENTER, 84f, 12f, isMono = true)
+        label(spec.topLine, RING_CENTER, 44f, 9f, isMono = true, trackingUnits = 1.5f, maxWidthUnits = OCTAGON_LINE_MAX)
+        label(spec.title, RING_CENTER, 66f, 16f, isMono = false, maxWidthUnits = OCTAGON_TITLE_MAX)
+        label(spec.bottomLine, RING_CENTER, 84f, 12f, isMono = true, maxWidthUnits = OCTAGON_LINE_MAX)
     }
 
     fun capital(spec: StampSpec) {
         oval(OVAL_CX, OVAL_CY, OVAL_OUTER_RX, OVAL_OUTER_RY, OVAL_STROKE)
         oval(OVAL_CX, OVAL_CY, OVAL_INNER_RX, OVAL_INNER_RY, HAIRLINE)
-        label(spec.topLine, OVAL_CX, 40f, 9f, isMono = true, trackingUnits = 2f)
-        label(spec.title, OVAL_CX, 62f, 17f, isMono = false)
-        label(spec.bottomLine, OVAL_CX, 80f, 12f, isMono = true)
+        label(spec.topLine, OVAL_CX, 40f, 9f, isMono = true, trackingUnits = 2f, maxWidthUnits = OVAL_LINE_MAX)
+        label(spec.title, OVAL_CX, 62f, 17f, isMono = false, maxWidthUnits = OVAL_TITLE_MAX)
+        label(spec.bottomLine, OVAL_CX, 80f, 12f, isMono = true, maxWidthUnits = OVAL_LINE_MAX)
     }
 
     fun postmark(spec: StampSpec) {
         circle(POSTMARK_CX, POSTMARK_CY, POSTMARK_R, POSTMARK_STROKE)
         waves(POSTMARK_WAVE_STROKE)
-        label(spec.topLine, POSTMARK_CX, 46f, 9f, isMono = true, trackingUnits = 1f)
-        label(spec.title, POSTMARK_CX, 60f, 13f, isMono = false)
+        label(spec.topLine, POSTMARK_CX, 46f, 9f, isMono = true, trackingUnits = 1f, maxWidthUnits = POSTMARK_LINE_MAX)
+        label(spec.title, POSTMARK_CX, 60f, 13f, isMono = false, maxWidthUnits = POSTMARK_LINE_MAX)
     }
 }
 
@@ -445,6 +518,7 @@ private fun measureRect(
     spec: StampSpec,
     look: RectLook,
     scale: Float,
+    maxWidth: Dp,
     density: Density,
     measurer: TextMeasurer,
     mono: TextStyle,
@@ -455,15 +529,33 @@ private fun measureRect(
         fontSize = title.fontSize * scale,
         letterSpacing = title.fontSize * (look.titleTracking * scale),
     )
-    fun measure(text: String, style: TextStyle) = measurer.measure(text, style, softWrap = false, maxLines = 1)
-    val top = spec.topLine.takeIf { it.isNotBlank() }?.let { measure(it, monoStyle) }
-    val head = measure(spec.title, titleStyle)
-    val bottom = spec.bottomLine.takeIf { it.isNotBlank() }?.let { measure(it, monoStyle) }
-    val lines = listOfNotNull(top, head, bottom)
     val gap = (Space.S2 * scale).toPx()
     val padX = (look.padX * scale).toPx()
     val padY = (look.padY * scale).toPx()
     val border = (look.border * scale).toPx()
+    val room = (maxWidth.toPx() - 2f * (padX + border)).coerceAtLeast(0f)
+    fun measure(text: String, style: TextStyle, limit: Float = room) = measurer.measure(
+        text, style,
+        overflow = TextOverflow.Ellipsis, softWrap = false, maxLines = 1,
+        constraints = Constraints(maxWidth = limit.toInt() + 1),
+    )
+    val top = spec.topLine.takeIf { it.isNotBlank() }?.let { measure(it, monoStyle) }
+    val bottom = spec.bottomLine.takeIf { it.isNotBlank() }?.let { measure(it, monoStyle) }
+    // Shrink the title first (down to the floor); only then does the ellipsis cut it.
+    val unbounded = measurer.measure(spec.title, titleStyle, softWrap = false, maxLines = 1)
+    val fit = fitTitleScale(unbounded.size.width.toFloat(), room, MIN_TITLE_SCALE)
+    val head = if (fit >= 1f) {
+        unbounded
+    } else {
+        measure(
+            spec.title,
+            titleStyle.copy(
+                fontSize = titleStyle.fontSize * fit,
+                letterSpacing = titleStyle.letterSpacing * fit,
+            ),
+        )
+    }
+    val lines = listOfNotNull(top, head, bottom)
     val contentWidth = lines.maxOf { it.size.width }.toFloat()
     val contentHeight = lines.sumOf { it.size.height } + gap * (lines.size - 1)
     val width = contentWidth + 2f * (padX + border)

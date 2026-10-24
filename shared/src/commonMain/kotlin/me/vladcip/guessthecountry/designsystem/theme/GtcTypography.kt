@@ -46,6 +46,7 @@ data class GtcTypography(
     val monoLabel: TextStyle,
     val monoTag: TextStyle,
     val monoMicro: TextStyle,
+    val monoTile: TextStyle,
     val monoCover: TextStyle,
     val coverTitle: TextStyle,
 )
@@ -94,6 +95,7 @@ fun rememberGtcTypography(): GtcTypography {
             monoLabel = TypeTokens.MonoLabel.toTextStyle(display, mono),
             monoTag = TypeTokens.MonoTag.toTextStyle(display, mono),
             monoMicro = TypeTokens.MonoMicro.toTextStyle(display, mono),
+            monoTile = TypeTokens.MonoTile.toTextStyle(display, mono),
             monoCover = TypeTokens.MonoCover.toTextStyle(display, mono),
             coverTitle = TypeTokens.CoverTitle.toTextStyle(display, mono),
         )
