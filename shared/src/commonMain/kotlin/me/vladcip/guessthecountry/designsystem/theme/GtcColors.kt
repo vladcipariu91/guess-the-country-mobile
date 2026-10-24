@@ -44,6 +44,10 @@ data class GtcColors(
     val onCoverTrack: Color,
     val optionOnCover: Color,
     val optionOnCoverStrong: Color,
+    val coverSpine: Color,
+    val swatchRing: Color,
+    val globeHighlight: Color,
+    val globeShade: Color,
     val stamp: StampInks,
     val isDark: Boolean,
 )
@@ -86,6 +90,10 @@ fun gtcColors(cover: PassportCover, dark: Boolean): GtcColors = GtcColors(
     onCoverTrack = ColorTokens.OnCoverTrack.pick(dark),
     optionOnCover = ColorTokens.OptionOnCover.pick(dark),
     optionOnCoverStrong = ColorTokens.OptionOnCoverStrong.pick(dark),
+    coverSpine = ColorTokens.CoverSpine.pick(dark),
+    swatchRing = ColorTokens.SwatchRing.pick(dark),
+    globeHighlight = ColorTokens.GlobeHighlight.pick(dark),
+    globeShade = ColorTokens.GlobeShade.pick(dark),
     stamp = StampInks(
         tier5 = ColorTokens.StampTier5.pick(dark),
         tier4 = ColorTokens.StampTier4.pick(dark),
