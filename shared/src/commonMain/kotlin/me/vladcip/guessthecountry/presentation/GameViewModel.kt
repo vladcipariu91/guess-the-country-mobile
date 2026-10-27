@@ -112,7 +112,14 @@ class GameViewModel(
         val playedOn = (_state.value as GameUiState.Playing).playedOn
         val tier = StampTier.forPoints(round.pointsEarned) ?: return
         val job = viewModelScope.launch {
-            val outcome = passportRepository.recordStamp(round.country.id, tier, playedOn)
+            // A failed write must not crash the app: that round simply ends up without a stamp.
+            val outcome = try {
+                passportRepository.recordStamp(round.country.id, tier, playedOn)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@launch
+            }
             _state.update { state ->
                 if (state is GameUiState.Playing && gameId == id) {
                     state.copy(stamps = state.stamps + (index to outcome))

@@ -12,7 +12,10 @@ import me.vladcip.guessthecountry.testing.FakePassportRepository
 import me.vladcip.guessthecountry.testing.FakeCountryRepository
 import me.vladcip.guessthecountry.testing.FakePlayerProgressRepository
 import me.vladcip.guessthecountry.testing.FakeToday
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.datetime.LocalDate
+import me.vladcip.guessthecountry.domain.passport.PassportRepository
 import me.vladcip.guessthecountry.ads.RewardedAdResult
 import me.vladcip.guessthecountry.testing.FakeAdService
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -42,7 +45,37 @@ class GameViewModelTest {
     @AfterTest
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = GameViewModel(countries, progress, passport, GameFactory(random = Random(1)), today, ads)
+    private fun viewModel(repository: PassportRepository = passport) =
+        GameViewModel(countries, progress, repository, GameFactory(random = Random(1)), today, ads)
+
+    /** Passport whose stamp writes suspend until [release] is called, to exercise the stale-game guards. */
+    private class GatedPassport(private val inner: FakePassportRepository) : PassportRepository by inner {
+        private val gate = CompletableDeferred<Unit>()
+
+        fun release() {
+            gate.complete(Unit)
+        }
+
+        override suspend fun recordStamp(countryId: String, tier: StampTier, day: LocalDate): StampOutcome {
+            gate.await()
+            return inner.recordStamp(countryId, tier, day)
+        }
+    }
+
+    /** Passport whose stamp writes fail, like a full disk would. */
+    private class FailingPassport(private val inner: FakePassportRepository) : PassportRepository by inner {
+        override suspend fun recordStamp(countryId: String, tier: StampTier, day: LocalDate): StampOutcome =
+            throw IllegalStateException("disk full")
+    }
+
+    /** Wins the first six rounds and the last one without continuing past it. */
+    private fun GameViewModel.winUntilLastRoundGuessed() {
+        repeat(6) {
+            guess(playing.game.currentRound.country)
+            continueGame()
+        }
+        guess(playing.game.currentRound.country)
+    }
 
     private val GameViewModel.playing get() = assertIs<GameUiState.Playing>(state.value)
 
@@ -379,5 +412,108 @@ class GameViewModelTest {
         vm.useFreeGames()
 
         assertEquals(listOf(day1, today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `a failed stamp write leaves the round without a stamp and play continues`() {
+        val vm = viewModel(FailingPassport(passport))
+        vm.startNewGame()
+        vm.guess(vm.playing.game.currentRound.country)
+
+        assertTrue(vm.playing.game.currentRound.isWon)
+        assertTrue(vm.playing.stamps.isEmpty())
+        assertTrue(passport.stamps.value.isEmpty())
+
+        vm.continueGame()
+        assertEquals(2, vm.playing.game.roundNumber)
+        vm.playWholeGameFromHere()
+        assertTrue(vm.finished.rounds.all { it.stamp == null })
+        assertEquals(35, vm.finished.score)
+    }
+
+    private fun GameViewModel.playWholeGameFromHere() {
+        repeat(7 - playing.game.currentIndex) {
+            guess(playing.game.currentRound.country)
+            continueGame()
+        }
+    }
+
+    @Test
+    fun `a stamp that finishes saving after quitting is stored but not shown in the next game`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        val country = vm.playing.game.currentRound.country
+        vm.guess(country)
+        vm.exitToMenu()
+        vm.startNewGame()
+
+        gated.release()
+
+        assertTrue(vm.playing.stamps.isEmpty())
+        assertEquals(listOf(country.id), passport.stamps.value.map { it.countryId })
+    }
+
+    @Test
+    fun `results wait for the last stamp to be saved`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+
+        vm.continueGame()
+        assertIs<GameUiState.Playing>(vm.state.value)
+
+        gated.release()
+
+        val summary = vm.finished
+        assertEquals(7, summary.rounds.size)
+        assertTrue(summary.rounds.all { it.stamp != null })
+        assertEquals(7, summary.firstVisits.size)
+    }
+
+    @Test
+    fun `quitting while the last stamp is saving never shows the results`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+        vm.continueGame()
+
+        vm.exitToMenu()
+        gated.release()
+
+        assertEquals(GameUiState.Idle, vm.state.value)
+        assertEquals(7, passport.stamps.value.size)
+    }
+
+    @Test
+    fun `quitting right after winning the last round never shows the results`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+
+        vm.exitToMenu()
+        gated.release()
+
+        assertEquals(GameUiState.Idle, vm.state.value)
+        assertEquals(7, passport.stamps.value.size)
+    }
+
+    @Test
+    fun `results of an abandoned game never replace a newer game`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+        vm.continueGame()
+
+        vm.exitToMenu()
+        vm.startNewGame()
+        gated.release()
+
+        assertEquals(1, vm.playing.game.roundNumber)
+        assertTrue(vm.playing.stamps.isEmpty())
     }
 }
