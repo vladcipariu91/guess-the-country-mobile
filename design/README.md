@@ -19,7 +19,7 @@
 
 ## Checks (`./gradlew check`)
 
-- **`:shared:checkTokensPublished`** fails when `tokens.json` changed since its last publish to Claude Design, so the two never drift apart.
+- **`:shared:checkTokensPublished`** fails when `tokens.json` changed since its last publish to Claude Design, so the two never drift apart. The guard hashes `design/tokens.json` only: a change to the exporter (`DesignSystemExport`) also needs a republish even though the check stays green.
 - **`:shared:checkNoRawDesignValues`** fails when screen code outside `designsystem/` uses raw colours (`Color(0x…)`), `dp`/`sp` number literals, `Font(`/`FontFamily(`, or `MaterialTheme.colorScheme`/`.typography`.
   - `raw-values-baseline.txt` lists screen files still allowed to break this rule until they are restyled.
   - The check also fails when a listed file no longer needs its entry, so the baseline only ever shrinks.

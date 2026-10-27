@@ -5,7 +5,11 @@ import me.vladcip.guessthecountry.domain.game.GameMode
 import me.vladcip.guessthecountry.domain.model.Country
 import me.vladcip.guessthecountry.domain.passport.StampOutcome
 
-/** One round of a finished game. [stamp] is non-null only for won "Guess the country" rounds. */
+/**
+ * One round of a finished game. [stamp] is non-null only for won "Guess the country" rounds whose
+ * stamp was saved: it is `null` for a won round whose save failed. The results page therefore derives
+ * the tier from [points] via `StampTier.forPoints`, not from [stamp].
+ */
 data class RoundSummary(
     val number: Int,
     val country: Country,

@@ -44,6 +44,16 @@ class PassportViewModelTest {
     }
 
     @Test
+    fun `0 of 0 is an empty fraction not NaN`() {
+        assertEquals(0f, PassportUiState(stampedCount = 0, totalCountries = 0).stampedFraction)
+    }
+
+    @Test
+    fun `stamped fraction is stamped over total`() {
+        assertEquals(2f / 21f, PassportUiState(stampedCount = 2, totalCountries = 21).stampedFraction)
+    }
+
+    @Test
     fun `needs a cover choice until one is set`() = runTest {
         val vm = viewModel()
 

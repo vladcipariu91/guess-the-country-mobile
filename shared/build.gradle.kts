@@ -84,4 +84,6 @@ dependencies {
 
 tasks.named("check") {
     dependsOn("checkNoRawDesignValues", "checkTokensPublished")
+    // The token codegen, scanner and exporter tests live in the included build.
+    dependsOn(gradle.includedBuild("build-logic").task(":test"))
 }

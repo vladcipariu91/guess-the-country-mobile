@@ -43,7 +43,11 @@ data class PassportUiState(
     /** Filtered by [selectedRegion] and sorted by country name. */
     val tiles: List<CollectionTileState> = emptyList(),
     val moments: Moments = Moments(0, null, 0, null),
-)
+) {
+    /** Stamped share of the collection, 0 when there are no countries (never NaN). */
+    val stampedFraction: Float
+        get() = if (totalCountries == 0) 0f else stampedCount.toFloat() / totalCountries
+}
 
 class PassportViewModel(
     countryRepository: CountryRepository,

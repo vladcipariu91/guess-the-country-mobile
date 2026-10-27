@@ -173,6 +173,8 @@ class GameViewModel(
         try {
             val today = todayProvider.today()
             val progress = progressRepository.progress.first()
+            // All three free games are used: if today's postmark write was lost earlier, record it now.
+            if (!progress.isPremium && progress.freeGamesLeft(today) == 0) recordPostmark(today)
             if (!progress.canStartGame(today)) {
                 playAfterAd(mode)
                 return
@@ -180,7 +182,7 @@ class GameViewModel(
             val earnsPostmark = progress.usesLastFreeGame(today)
             val game = gameFactory.create(countryRepository.getAllCountries(), mode)
             progressRepository.recordGameStarted(today)
-            val postmark = today.takeIf { earnsPostmark && passportRepository.recordPostmark(today) }
+            val postmark = today.takeIf { earnsPostmark && recordPostmark(today) }
             gameId++
             postmarkEarned = postmark
             stampJobs.clear()
@@ -190,6 +192,15 @@ class GameViewModel(
         } catch (e: Exception) {
             _state.value = GameUiState.Error(mode, e.message ?: "Couldn't start the game")
         }
+    }
+
+    /** Whether a new postmark was stored; a failed write must not block the game, the next start retries it. */
+    private suspend fun recordPostmark(day: LocalDate): Boolean = try {
+        passportRepository.recordPostmark(day)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        false
     }
 
     private suspend fun playAfterAd(mode: GameMode) {

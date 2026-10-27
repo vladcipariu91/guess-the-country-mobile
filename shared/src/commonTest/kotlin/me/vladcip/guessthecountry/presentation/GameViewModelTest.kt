@@ -68,6 +68,19 @@ class GameViewModelTest {
             throw IllegalStateException("disk full")
     }
 
+    /** Passport whose first postmark write fails, so the day's postmark is lost. */
+    private class LossyPostmarkPassport(private val inner: FakePassportRepository) : PassportRepository by inner {
+        private var failed = false
+
+        override suspend fun recordPostmark(day: LocalDate): Boolean {
+            if (!failed) {
+                failed = true
+                throw IllegalStateException("disk full")
+            }
+            return inner.recordPostmark(day)
+        }
+    }
+
     /** Wins the first six rounds and the last one without continuing past it. */
     private fun GameViewModel.winUntilLastRoundGuessed() {
         repeat(6) {
@@ -401,6 +414,67 @@ class GameViewModelTest {
         vm.startNewGame()
         vm.guess(vm.playing.game.currentRound.country)
         assertEquals(1, passport.stamps.value.size)
+    }
+
+    @Test
+    fun `a failed postmark write does not block the game`() {
+        val vm = viewModel(LossyPostmarkPassport(passport))
+        repeat(2) {
+            vm.startNewGame()
+            vm.exitToMenu()
+        }
+
+        vm.startNewGame()
+
+        assertIs<GameUiState.Playing>(vm.state.value)
+        assertTrue(passport.postmarks.value.isEmpty())
+    }
+
+    @Test
+    fun `a lost postmark is recorded at the next start that day`() {
+        val vm = viewModel(LossyPostmarkPassport(passport))
+        vm.useFreeGames()
+        assertTrue(passport.postmarks.value.isEmpty())
+
+        vm.watchAd(GameMode.GuessTheCountry)
+        ads.finishAd(RewardedAdResult.Rewarded)
+
+        assertIs<GameUiState.Playing>(vm.state.value)
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `a postmark lost to a quit during loading is recorded at the next start`() {
+        progress.progress.value = PlayerProgress(freeGamesDay = today.date, freeGamesUsed = 3, adCredits = 1)
+        val vm = viewModel()
+
+        vm.startNewGame()
+
+        assertIs<GameUiState.Playing>(vm.state.value)
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `premium never self-heals a postmark`() {
+        progress.progress.value = PlayerProgress(isPremium = true, freeGamesDay = today.date, freeGamesUsed = 3)
+        val vm = viewModel()
+
+        vm.startNewGame()
+
+        assertTrue(passport.postmarks.value.isEmpty())
+    }
+
+    @Test
+    fun `a fresh day with games left gets no postmark early`() {
+        progress.progress.value = PlayerProgress(freeGamesDay = today.date, freeGamesUsed = 3)
+        val vm = viewModel()
+        today.advanceOneDay()
+
+        vm.startNewGame()
+        vm.exitToMenu()
+        vm.startNewGame()
+
+        assertTrue(passport.postmarks.value.isEmpty())
     }
 
     @Test

@@ -6,12 +6,16 @@ Kotlin Multiplatform (Android + iOS) with Compose Multiplatform UI, Room (KMP), 
 
 - `shared/` — the game, in `me.vladcip.guessthecountry`:
   - `domain/` — game rules (`HintRound`, `FlagRound`, `Game`, `GameFactory`) and the daily free-game / ad-credit rules (`PlayerProgress`). Pure Kotlin.
+  - `domain/passport/` — the passport: country stamps (with tiers), daily postmarks and the cover choice. Pure Kotlin.
   - `data/` — Room database, DAOs, repositories, and the seeded questions (`data/seed/SeedCountries.kt`).
-  - `presentation/` — `GameViewModel`, `HomeViewModel`.
+  - `presentation/` — `GameViewModel`, `HomeViewModel`, `PassportViewModel`.
+  - `designsystem/` — token-driven theme, motion, components and the debug catalogue. Never hand-code colours or sizes in screens.
   - `ui/` — Compose screens (`App` is the entry point).
 - `ads/` — rewarded ads (Google AdMob + consent) behind a small `AdService` interface, so Google's SDKs stay
   out of the game code. Android uses the SDK directly; on iOS the SDK is a Swift package and
   `iosApp/iosApp/GoogleRewardedAds.swift` implements the `NativeRewardedAds` bridge.
+- `build-logic/` — included Gradle build: design-token codegen, the Claude Design exporter and the design checks.
+- `design/` — `tokens.json`, the source of truth for the design system. See `design/README.md`.
 - `androidApp/` — Android application shell.
 - `iosApp/` — Xcode project; a build phase runs Gradle to embed the `Shared` framework (which re-exports `ads`).
 
@@ -40,8 +44,14 @@ Ads and payments are placeholders.
 ./gradlew :shared:iosSimulatorArm64Test    # common tests + Room tests on the iOS simulator
 ./gradlew :ads:iosSimulatorArm64Test       # iOS ads bridge tests
 ./gradlew :androidApp:assembleDebug
+./gradlew check                            # unit tests, design checks and build-logic tests
+./gradlew :shared:exportDesignSystem       # export the tokens for Claude Design (see design/README.md)
 open iosApp/iosApp.xcodeproj               # then Run; set TEAM_ID in iosApp/Configuration/Config.xcconfig for a device
 ```
+
+Debug builds of the Android app have a second launcher icon, **GTC Catalogue**, showing every token and component.
+
+Pre-release the Room database stays at version 1 with no migrations; after a schema change, uninstall and reinstall the app (this branch adds a `region` column and three passport tables).
 
 ## Before going live
 

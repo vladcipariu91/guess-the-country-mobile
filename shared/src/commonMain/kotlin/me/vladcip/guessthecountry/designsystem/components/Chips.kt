@@ -67,7 +67,7 @@ fun GtcFilterChip(
 }
 
 /**
- * Thin progress track (P-Collection header). [fraction] is clamped to 0..1. On a cover it is a gold
+ * Thin progress track (P-Collection header). [fraction] is clamped to 0..1 (NaN counts as 0). On a cover it is a gold
  * fill on the translucent `onCoverTrack`; on paper ([onCover] false) gold on `goldTrack`.
  */
 @Composable
@@ -77,7 +77,7 @@ fun GtcProgressBar(
     onCover: Boolean = true,
 ) {
     val colors = GtcTheme.colors
-    val clamped = fraction.coerceIn(0f, 1f)
+    val clamped = if (fraction.isNaN()) 0f else fraction.coerceIn(0f, 1f)
     Box(
         modifier = modifier
             .fillMaxWidth()
