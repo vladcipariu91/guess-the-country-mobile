@@ -10,6 +10,7 @@ data class Country(
     val name: String,
     val capital: String,
     val hints: List<String>,
+    val region: Region,
 ) {
     init {
         require(hints.isNotEmpty()) { "Country $id needs at least one hint" }

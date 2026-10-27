@@ -1,5 +1,6 @@
 package me.vladcip.guessthecountry.data.seed
 
+import me.vladcip.guessthecountry.domain.model.Region
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -36,5 +37,24 @@ class SeedCountriesTest {
                 assertFalse(hint.contains(country.capital, ignoreCase = true), "${country.name}: $hint")
             }
         }
+    }
+
+    @Test
+    fun `every region has at least one country`() {
+        assertEquals(Region.entries.toSet(), countries.map { it.region }.toSet())
+    }
+
+    @Test
+    fun `regions match geography`() {
+        val expected = mapOf(
+            "JP" to Region.Asia, "BR" to Region.Americas, "CA" to Region.Americas,
+            "AU" to Region.Oceania, "EG" to Region.Africa, "FR" to Region.Europe,
+            "IT" to Region.Europe, "IN" to Region.Asia, "MX" to Region.Americas,
+            "KE" to Region.Africa, "AR" to Region.Americas, "NO" to Region.Europe,
+            "PE" to Region.Americas, "ZA" to Region.Africa, "TH" to Region.Asia,
+            "MA" to Region.Africa, "GR" to Region.Europe, "NZ" to Region.Oceania,
+            "VN" to Region.Asia, "IS" to Region.Europe, "DE" to Region.Europe,
+        )
+        assertEquals(expected, countries.associate { it.id to it.region })
     }
 }

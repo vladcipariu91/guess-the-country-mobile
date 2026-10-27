@@ -19,7 +19,7 @@ class DatabaseSeeder(
         if (seeded) return@withLock
         if (countryDao.count() == 0) {
             countryDao.insertAll(
-                countries = countries.map { CountryEntity(it.id, it.name, it.capital) },
+                countries = countries.map { CountryEntity(it.id, it.name, it.capital, it.region.name) },
                 hints = countries.flatMap { country ->
                     country.hints.mapIndexed { index, text ->
                         HintEntity(countryId = country.id, position = index, text = text)

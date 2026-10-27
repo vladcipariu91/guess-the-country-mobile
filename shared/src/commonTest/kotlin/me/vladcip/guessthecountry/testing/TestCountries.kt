@@ -1,6 +1,7 @@
 package me.vladcip.guessthecountry.testing
 
 import me.vladcip.guessthecountry.domain.model.Country
+import me.vladcip.guessthecountry.domain.model.Region
 
 /** Ids are valid ISO codes ("AA", "AB", …) so flags can be built from them. */
 fun testCountry(n: Int) = Country(
@@ -8,6 +9,7 @@ fun testCountry(n: Int) = Country(
     name = "Country $n",
     capital = "Capital $n",
     hints = List(4) { "Hint ${it + 1} for country $n" },
+    region = Region.entries[n % Region.entries.size],
 )
 
 fun testCountries(count: Int) = List(count) { testCountry(it + 1) }

@@ -1,6 +1,7 @@
 package me.vladcip.guessthecountry.data.seed
 
 import me.vladcip.guessthecountry.domain.model.Country
+import me.vladcip.guessthecountry.domain.model.Region
 
 /**
  * Questions shipped with the app. Hints go from hardest (5 points) to easiest (2 points);
@@ -18,6 +19,7 @@ object SeedCountries {
                 "It is an archipelago of more than 14,000 islands, the largest being Honshu.",
                 "Mount Fuji, sushi and the Shinkansen bullet train all come from here.",
             ),
+            region = Region.Asia,
         ),
         Country(
             id = "BR",
@@ -29,6 +31,7 @@ object SeedCountries {
                 "It is the largest Portuguese-speaking country in the world.",
                 "Rio de Janeiro's Carnival and five FIFA World Cup titles.",
             ),
+            region = Region.Americas,
         ),
         Country(
             id = "CA",
@@ -40,6 +43,7 @@ object SeedCountries {
                 "It is officially bilingual in English and French.",
                 "A red maple leaf sits in the middle of its flag.",
             ),
+            region = Region.Americas,
         ),
         Country(
             id = "AU",
@@ -51,6 +55,7 @@ object SeedCountries {
                 "It is the only country that covers an entire continent.",
                 "Kangaroos, koalas and the Sydney Opera House.",
             ),
+            region = Region.Oceania,
         ),
         Country(
             id = "EG",
@@ -62,6 +67,7 @@ object SeedCountries {
                 "Almost all of its people live along the valley and delta of one great river.",
                 "The Great Pyramid of Giza and the Sphinx.",
             ),
+            region = Region.Africa,
         ),
         Country(
             id = "FR",
@@ -73,6 +79,7 @@ object SeedCountries {
                 "It is the most visited country in the world by international tourists.",
                 "The Eiffel Tower and the Louvre.",
             ),
+            region = Region.Europe,
         ),
         Country(
             id = "IT",
@@ -84,6 +91,7 @@ object SeedCountries {
                 "Its mainland is shaped like a boot.",
                 "Pizza, pasta and the Colosseum.",
             ),
+            region = Region.Europe,
         ),
         Country(
             id = "IN",
@@ -95,6 +103,7 @@ object SeedCountries {
                 "It is the most populous country in the world.",
                 "The Taj Mahal and Bollywood.",
             ),
+            region = Region.Asia,
         ),
         Country(
             id = "MX",
@@ -106,6 +115,7 @@ object SeedCountries {
                 "Its flag shows an eagle on a cactus devouring a snake.",
                 "Tacos, mariachi and the Day of the Dead.",
             ),
+            region = Region.Americas,
         ),
         Country(
             id = "KE",
@@ -117,6 +127,7 @@ object SeedCountries {
                 "Its long-distance runners have set many marathon world records.",
                 "Safaris in the Maasai Mara, home of the Great Migration.",
             ),
+            region = Region.Africa,
         ),
         Country(
             id = "AR",
@@ -128,6 +139,7 @@ object SeedCountries {
                 "It is the birthplace of the tango.",
                 "Diego Maradona and Lionel Messi led its national football team.",
             ),
+            region = Region.Americas,
         ),
         Country(
             id = "NO",
@@ -139,6 +151,7 @@ object SeedCountries {
                 "The Nobel Peace Prize is awarded here, not in Sweden.",
                 "Fjords, Vikings and the midnight sun.",
             ),
+            region = Region.Europe,
         ),
         Country(
             id = "PE",
@@ -150,6 +163,7 @@ object SeedCountries {
                 "The Nazca Lines are etched into its southern desert.",
                 "Machu Picchu, the Inca citadel in the clouds.",
             ),
+            region = Region.Americas,
         ),
         Country(
             id = "ZA",
@@ -161,6 +175,7 @@ object SeedCountries {
                 "It completely surrounds another country, Lesotho.",
                 "Nelson Mandela was its first democratically elected president.",
             ),
+            region = Region.Africa,
         ),
         Country(
             id = "TH",
@@ -172,6 +187,7 @@ object SeedCountries {
                 "Phuket and Koh Samui are among its best-known islands.",
                 "It was known as Siam until 1939.",
             ),
+            region = Region.Asia,
         ),
         Country(
             id = "MA",
@@ -183,6 +199,7 @@ object SeedCountries {
                 "Its largest city is Casablanca.",
                 "The souks of Marrakesh and the Atlas Mountains.",
             ),
+            region = Region.Africa,
         ),
         Country(
             id = "GR",
@@ -194,6 +211,7 @@ object SeedCountries {
                 "It is seen as the birthplace of democracy and the Olympic Games.",
                 "Santorini's white houses and blue domes.",
             ),
+            region = Region.Europe,
         ),
         Country(
             id = "NZ",
@@ -205,6 +223,7 @@ object SeedCountries {
                 "Its rugby team, the All Blacks, performs the haka before matches.",
                 "Kiwi birds and the filming locations of The Lord of the Rings.",
             ),
+            region = Region.Oceania,
         ),
         Country(
             id = "VN",
@@ -216,6 +235,7 @@ object SeedCountries {
                 "Ha Long Bay's limestone islands rise from its northern waters.",
                 "Pho noodle soup and the Mekong Delta.",
             ),
+            region = Region.Asia,
         ),
         Country(
             id = "IS",
@@ -227,6 +247,7 @@ object SeedCountries {
                 "It sits on the Mid-Atlantic Ridge, full of volcanoes and geysers.",
                 "The Blue Lagoon and the northern lights over a land of fire and ice.",
             ),
+            region = Region.Europe,
         ),
         Country(
             id = "DE",
@@ -238,6 +259,7 @@ object SeedCountries {
                 "Parts of its autobahn network have no general speed limit.",
                 "Oktoberfest, bratwurst and pretzels.",
             ),
+            region = Region.Europe,
         ),
     )
 }

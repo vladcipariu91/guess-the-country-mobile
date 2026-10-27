@@ -12,6 +12,8 @@ data class CountryEntity(
     @PrimaryKey val id: String,
     val name: String,
     val capital: String,
+    /** [me.vladcip.guessthecountry.domain.model.Region.name]. */
+    val region: String,
 )
 
 @Entity(
