@@ -4,7 +4,11 @@ import me.vladcip.guessthecountry.domain.game.GameFactory
 import me.vladcip.guessthecountry.domain.game.GameMode
 import me.vladcip.guessthecountry.domain.game.HintRound
 import me.vladcip.guessthecountry.domain.game.RoundPhase
+import me.vladcip.guessthecountry.domain.passport.CountryStamp
+import me.vladcip.guessthecountry.domain.passport.StampOutcome
+import me.vladcip.guessthecountry.domain.passport.StampTier
 import me.vladcip.guessthecountry.domain.progress.PlayerProgress
+import me.vladcip.guessthecountry.testing.FakePassportRepository
 import me.vladcip.guessthecountry.testing.FakeCountryRepository
 import me.vladcip.guessthecountry.testing.FakePlayerProgressRepository
 import me.vladcip.guessthecountry.testing.FakeToday
@@ -21,6 +25,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -29,6 +34,7 @@ class GameViewModelTest {
     private val progress = FakePlayerProgressRepository()
     private val today = FakeToday()
     private val ads = FakeAdService()
+    private val passport = FakePassportRepository()
 
     @BeforeTest
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -36,7 +42,7 @@ class GameViewModelTest {
     @AfterTest
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = GameViewModel(countries, progress, GameFactory(random = Random(1)), today, ads)
+    private fun viewModel() = GameViewModel(countries, progress, passport, GameFactory(random = Random(1)), today, ads)
 
     private val GameViewModel.playing get() = assertIs<GameUiState.Playing>(state.value)
 
@@ -100,7 +106,10 @@ class GameViewModelTest {
         val vm = viewModel()
         vm.startNewGame()
         vm.playWholeGame()
-        assertEquals(GameUiState.Finished(GameMode.GuessTheCountry, score = 35, maxScore = 35), vm.state.value)
+        val summary = assertIs<GameUiState.Finished>(vm.state.value).summary
+        assertEquals(GameMode.GuessTheCountry, summary.mode)
+        assertEquals(35, summary.score)
+        assertEquals(35, summary.maxScore)
 
         vm.exitToMenu()
         assertEquals(GameUiState.Idle, vm.state.value)
@@ -245,5 +254,130 @@ class GameViewModelTest {
         vm.nextClue()
         vm.skipToCapital()
         assertEquals(before, vm.playing.game)
+    }
+
+    private val GameViewModel.finished get() = assertIs<GameUiState.Finished>(state.value).summary
+
+    @Test
+    fun `winning a hint round stamps the country immediately`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        val country = vm.playing.game.currentRound.country
+
+        vm.guess(country)
+
+        assertEquals(listOf(CountryStamp(country.id, StampTier.FirstClue, today.date)), passport.stamps.value)
+        assertEquals(StampOutcome(StampTier.FirstClue, isNewBest = true, isFirstVisit = true), vm.playing.stamps[0])
+    }
+
+    @Test
+    fun `losing a hint round records nothing`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        vm.skipToCapital()
+        val round = vm.playing.game.currentRound
+        vm.guess(round.options.first { it != round.country })
+
+        assertTrue(vm.playing.game.currentRound.isFinished)
+        assertTrue(passport.stamps.value.isEmpty())
+        assertTrue(vm.playing.stamps.isEmpty())
+    }
+
+    @Test
+    fun `flag rounds never stamp`() {
+        val vm = viewModel()
+        vm.startNewGame(GameMode.GuessTheFlag)
+        vm.playWholeGame()
+
+        assertTrue(passport.stamps.value.isEmpty())
+        assertTrue(vm.finished.rounds.all { it.stamp == null })
+    }
+
+    @Test
+    fun `quitting keeps earned stamps`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        val country = vm.playing.game.currentRound.country
+        vm.guess(country)
+        vm.exitToMenu()
+
+        assertEquals(listOf(country.id), passport.stamps.value.map { it.countryId })
+
+        vm.startNewGame()
+        vm.playWholeGame()
+        assertEquals(7, vm.finished.rounds.size)
+    }
+
+    @Test
+    fun `summary lists rounds and first visits and score`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        vm.playWholeGame()
+
+        val summary = vm.finished
+        assertEquals(7, summary.rounds.size)
+        assertEquals(summary.rounds.map { it.country }, summary.firstVisits)
+        assertEquals(7, summary.firstVisits.size)
+        assertEquals(35, summary.score)
+        assertEquals(35, summary.maxScore)
+        assertEquals(today.date, summary.playedOn)
+        assertNull(summary.postmark)
+    }
+
+    @Test
+    fun `third free game earns the postmark even if quit`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `postmark shows on the summary of the game that earned it`() {
+        val vm = viewModel()
+        repeat(2) {
+            vm.startNewGame()
+            vm.exitToMenu()
+        }
+        assertTrue(passport.postmarks.value.isEmpty())
+
+        vm.startNewGame()
+        vm.playWholeGame()
+
+        assertEquals(today.date, vm.finished.postmark)
+    }
+
+    @Test
+    fun `ad game earns no postmark`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+
+        vm.watchAd(GameMode.GuessTheCountry)
+        ads.finishAd(RewardedAdResult.Rewarded)
+
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `premium earns no postmark`() {
+        progress.progress.value = PlayerProgress(isPremium = true)
+        val vm = viewModel()
+        vm.useFreeGames()
+        assertTrue(passport.postmarks.value.isEmpty())
+
+        vm.startNewGame()
+        vm.guess(vm.playing.game.currentRound.country)
+        assertEquals(1, passport.stamps.value.size)
+    }
+
+    @Test
+    fun `postmark again on a new day`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+        val day1 = today.date
+        today.advanceOneDay()
+        vm.useFreeGames()
+
+        assertEquals(listOf(day1, today.date), passport.postmarks.value)
     }
 }
