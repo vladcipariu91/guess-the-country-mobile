@@ -1,0 +1,163 @@
+{
+  "issues": [
+    {
+      "number": 1,
+      "title": "Daily streak counter",
+      "url": "https://github.com/demo/guess-the-country/issues/1",
+      "state": "open",
+      "labels": [
+        "factory",
+        "stage:todo"
+      ],
+      "closedAt": null,
+      "body": "## Goal\nShow how many days in a row the player has finished at least one game.\n\n## Why it matters\nStreaks bring players back tomorrow.\n\n## Acceptance criteria\n- [ ] Home screen shows the current streak as a number with a flame icon\n- [ ] Playing a game today keeps the streak; missing a whole day resets it to 0\n- [ ] The streak survives an app restart\n\n## Out of scope\nReminder notifications and streak freezes.\n"
+    },
+    {
+      "number": 2,
+      "title": "Hint button that reveals the continent",
+      "url": "https://github.com/demo/guess-the-country/issues/2",
+      "state": "open",
+      "labels": [
+        "factory",
+        "stage:planning"
+      ],
+      "closedAt": null,
+      "body": "## Goal\nAdd a Hint button on the clue screen that reveals which continent the country is in.\n\n## Why it matters\nStuck players get a nudge instead of quitting.\n\n## Acceptance criteria\n- [ ] Hint button appears under the clues\n- [ ] Tapping it shows the continent name once per round\n- [ ] Using a hint lowers the points for that round\n\n## Out of scope\nHints for flag rounds.\n"
+    },
+    {
+      "number": 3,
+      "title": "Haptic buzz on a correct guess",
+      "url": "https://github.com/demo/guess-the-country/issues/3",
+      "state": "open",
+      "labels": [
+        "factory",
+        "stage:awaiting-approval"
+      ],
+      "closedAt": null,
+      "body": "## Goal\nGive a short vibration when the player picks the right answer.\n\n## Why it matters\nMakes correct answers feel rewarding.\n\n## Acceptance criteria\n- [ ] Correct answer triggers a light haptic on Android and iOS\n- [ ] Wrong answers do not vibrate\n- [ ] Respects the system haptics setting\n\n## Out of scope\nA settings toggle (separate ticket).\n"
+    },
+    {
+      "number": 4,
+      "title": "Share my passport",
+      "url": "https://github.com/demo/guess-the-country/issues/4",
+      "state": "open",
+      "labels": [
+        "factory",
+        "stage:building"
+      ],
+      "closedAt": null,
+      "body": "## Goal\nLet the player share an image of their passport stamps from the Passport screen.\n\n## Why it matters\nSharing is free marketing and a nice flex.\n\n## Acceptance criteria\n- [ ] Share button on the Passport screen\n- [ ] Opens the native share sheet with a PNG of the stamps\n- [ ] Works on both Android and iOS\n\n## Out of scope\nSharing individual stamps.\n"
+    },
+    {
+      "number": 5,
+      "title": "Zoomable flag",
+      "url": "https://github.com/demo/guess-the-country/issues/5",
+      "state": "open",
+      "labels": [
+        "factory",
+        "stage:in-review"
+      ],
+      "closedAt": null,
+      "body": "## Goal\nAllow pinch-to-zoom on the flag in flag rounds.\n\n## Why it matters\nSmall details like emblems are hard to see on a phone.\n\n## Acceptance criteria\n- [ ] Pinch zooms the flag up to 3x\n- [ ] Double-tap resets the zoom\n- [ ] Zoom resets between rounds\n\n## Out of scope\nPanning beyond the flag bounds.\n"
+    },
+    {
+      "number": 6,
+      "title": "Sound on/off toggle",
+      "url": "https://github.com/demo/guess-the-country/issues/6",
+      "state": "closed",
+      "labels": [
+        "factory"
+      ],
+      "closedAt": "2026-11-09T18:30:00Z",
+      "body": "## Goal\nAdd a switch in the top bar to mute game sounds.\n\n## Why it matters\nPlayers often play in quiet places.\n\n## Acceptance criteria\n- [ ] Toggle visible on the Home screen\n- [ ] Choice is remembered after restart\n- [ ] Muted state silences all game sounds\n\n## Out of scope\nVolume slider.\n"
+    }
+  ],
+  "status": {
+    "2": {
+      "step": "planning",
+      "state": "running",
+      "minutesAgo": 2
+    },
+    "4": {
+      "step": "building",
+      "state": "running",
+      "minutesAgo": 7
+    }
+  },
+  "pulls": {
+    "5": {
+      "number": 12,
+      "url": "https://github.com/demo/guess-the-country/pull/12",
+      "state": "open"
+    },
+    "6": {
+      "number": 9,
+      "url": "https://github.com/demo/guess-the-country/pull/9",
+      "state": "closed"
+    }
+  },
+  "comments": {
+    "3": [
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan -->\n## Approach\nAdd a small `Haptics` expect/actual in the shared module. Android uses `Vibrator`/`HapticFeedback`, iOS uses `UIImpactFeedbackGenerator`. Call it when an answer is confirmed correct.\n\n## Files\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/ui/GameScreen.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/designsystem/components/AnswerOption.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/domain/game/Game.kt`\n\n## Tests\nUnit test that a correct answer emits the haptic event and a wrong one does not.\n\n## Risks\nHaptics differ per device; keep the intensity light.\n",
+        "createdAt": "2026-11-10T09:12:00Z"
+      },
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan-review -->\nPlan looks sound. Make sure the haptic is fired from the UI layer, not the domain `Game`, so tests stay pure. Otherwise approved.\n",
+        "createdAt": "2026-11-10T09:15:00Z"
+      }
+    ],
+    "4": [
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan -->\n## Approach\nRender the stamp grid to a bitmap off-screen and hand it to the platform share sheet through an expect/actual `ShareImage`.\n\n## Files\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/ui/Screens.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/designsystem/components/Passport.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/designsystem/components/Stamps.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/presentation/PassportViewModel.kt`\n\n## Tests\nViewModel test that tapping Share emits a share event with the current stamps.\n\n## Risks\nBitmap rendering differs between platforms; test on both.\n",
+        "createdAt": "2026-11-10T08:02:00Z"
+      },
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan-review -->\nApproach is fine. Keep image size bounded so large passports do not run out of memory.\n",
+        "createdAt": "2026-11-10T08:05:00Z"
+      }
+    ],
+    "5": [
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan -->\n## Approach\nWrap the flag image in a `transformable` modifier holding scale state, clamp to 1x-3x, and reset on double-tap and when the round changes.\n\n## Files\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/designsystem/components/Chips.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/domain/game/FlagRound.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/ui/GameScreen.kt`\n\n## Tests\nTest the clamp logic in a pure helper (scale in, scale out).\n\n## Risks\nGesture conflicts with scrolling.\n",
+        "createdAt": "2026-11-09T14:00:00Z"
+      },
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan-review -->\nGood. Extract the clamp so it can be tested without Compose.\n",
+        "createdAt": "2026-11-09T14:03:00Z"
+      }
+    ],
+    "6": [
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan -->\n## Approach\nStore a `soundEnabled` flag in player progress and expose it through the Home view model; the top bar renders a speaker icon that flips it.\n\n## Files\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/domain/progress/PlayerProgress.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/presentation/HomeViewModel.kt`\n- `shared/src/commonMain/kotlin/me/vladcip/guessthecountry/designsystem/components/TopBar.kt`\n\n## Tests\nView model test that toggling flips and persists the flag.\n\n## Risks\nMigrating stored progress; defaults to enabled.\n",
+        "createdAt": "2026-11-08T10:00:00Z"
+      },
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:plan-review -->\nPlan approved as written.\n",
+        "createdAt": "2026-11-08T10:04:00Z"
+      }
+    ],
+    "9": [
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:code-review -->\nLooks good. Toggle persists and the icon state matches. Merged-ready.\n",
+        "createdAt": "2026-11-09T17:50:00Z"
+      }
+    ],
+    "12": [
+      {
+        "author": "factory-bot",
+        "body": "<!-- factory:code-review -->\nImplementation matches the plan. Clamp helper is tested. One nit: the reset on round change relies on `remember(round)`, which is correct but worth a comment. No blockers.\n",
+        "createdAt": "2026-11-10T07:40:00Z"
+      }
+    ]
+  }
+}
