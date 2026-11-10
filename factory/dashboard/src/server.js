@@ -25,6 +25,7 @@ if (demo) {
   write = async (prompt) => demoWriteTicket(prompt);
 } else {
   const token = env.GITHUB_TOKEN;
+  delete process.env.GITHUB_TOKEN; // nothing the server spawns may inherit it
   if (!token) {
     console.error('GITHUB_TOKEN is missing. Put it in factory/dashboard/.env, or run with DEMO=1.');
     process.exit(1);

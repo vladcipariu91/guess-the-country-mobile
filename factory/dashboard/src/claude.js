@@ -11,10 +11,11 @@ export function buildArgs(prompt, { allowedTools, maxTurns, settingSources = 'pr
  * `--output-format json` document); rejects on non-zero exit or timeout.
  * `bin`/`binArgs` exist for tests only.
  */
-export function runClaude(prompt, { cwd, timeoutMs = 120000, allowedTools, maxTurns, settingSources, bin = 'claude', binArgs = [] }) {
+export function runClaude(prompt, { cwd, timeoutMs = 120000, allowedTools, maxTurns, settingSources, bin = 'claude', binArgs = [], env = process.env }) {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, [...binArgs, ...buildArgs(prompt, { allowedTools, maxTurns, settingSources })], {
       cwd,
+      env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';

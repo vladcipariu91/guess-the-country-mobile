@@ -13,12 +13,16 @@ const BUILD = 'Read,Edit,Write,Glob,Grep,Task,Bash(./gradlew:*),Bash(git status:
 const REVIEW = 'Read,Glob,Grep,Bash(git diff:*),Bash(git log:*)';
 const PLAN_MARK = '<!-- factory:plan -->';
 
-const defaultGit = async (args, cwd) => {
-  const { stdout } = await execFileP('git', args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, maxBuffer: 10 * 1024 * 1024 });
-  return stdout;
+const cleanEnv = () => {
+  const env = { ...process.env };
+  delete env.GITHUB_TOKEN;
+  return env;
 };
 
-export function createRunner({ client, token, repo, repoDir, runsDir, runClaude = defaultRunClaude, git = defaultGit, now = () => new Date().toISOString() }) {
+export function createRunner({ client, token, repo, repoDir, runsDir, runClaude = defaultRunClaude, git, now = () => new Date().toISOString() }) {
+  const childEnv = cleanEnv();
+  const gitEnv = { ...childEnv, GIT_TERMINAL_PROMPT: '0' };
+  git ??= async (args, cwd) => (await execFileP('git', args, { cwd, env: gitEnv, maxBuffer: 10 * 1024 * 1024 })).stdout;
   const jobs = new Map(); // n -> { kind, step, state, startedAt }
   const queue = [];
   let working = false;
@@ -47,6 +51,7 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
     const dir = join(runsDir, `issue-${n}`);
     if (!existsSync(dir)) {
       await git(['fetch', 'origin'], repoDir);
+      await git(['worktree', 'prune'], repoDir);
       await git(['worktree', 'add', '-B', `factory/issue-${n}`, dir, 'origin/main'], repoDir);
       const props = join(repoDir, 'local.properties');
       if (existsSync(props)) await copyFile(props, join(dir, 'local.properties'));
@@ -60,14 +65,15 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
     const file = join(dir, '.factory', out);
     await rm(file, { force: true });
     await mkdir(join(dir, '.factory'), { recursive: true });
-    await runClaude(await prompt(promptFile, vars), { cwd: dir, timeoutMs: TIMEOUT, allowedTools: tools, maxTurns, settingSources: 'project,local' });
+    await writeFile(join(dir, '.factory', '.gitignore'), '*\n');
+    await runClaude(await prompt(promptFile, vars), { cwd: dir, timeoutMs: TIMEOUT, allowedTools: tools, maxTurns, settingSources: 'project,local', env: childEnv });
     if (!existsSync(file)) throw new Error(`step finished without writing .factory/${out}`);
     return readFile(file, 'utf8');
   }
 
   const verdictOf = (text) => {
-    const first = text.split('\n').find((l) => l.trim());
-    return /^\s*Verdict:\s*APPROVE\b/i.test(first ?? '') ? 'APPROVE' : 'CHANGES';
+    const first = (text.split('\n').find((l) => l.trim()) ?? '').replace(/^[\s*#>_]+/, '').replace(/[\s*_]+$/, '');
+    return /^Verdict:\s*APPROVE\b/i.test(first) ? 'APPROVE' : 'CHANGES';
   };
 
   async function plan(n, job) {
@@ -94,8 +100,9 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
     const prBody = await step(job, 'building', dir, 'builder.md', { ISSUE: text, PLAN: planBlock, NUMBER: String(n) }, BUILD, 80, 'pr.md');
     const count = Number((await git(['rev-list', '--count', 'origin/main..HEAD'], dir)).trim());
     if (!count) throw new Error('builder made no commits');
-    await git(['push', `https://x-access-token:${token}@github.com/${repo}.git`, `HEAD:refs/heads/${branch}`], dir);
-    const pr = (await client.findPullForIssue(n)) ?? (await client.createPull({ head: branch, title, body: `${prBody}\n\nCloses #${n}` }));
+    await git(['-c', 'credential.helper=', 'push', `https://x-access-token:${token}@github.com/${repo}.git`, `+HEAD:refs/heads/${branch}`], dir);
+    const found = await client.findPullForIssue(n);
+    const pr = found?.state === 'open' ? found : (await client.createPull({ head: branch, title, body: `${prBody}\n\nCloses #${n}` }));
     const review = await step(job, 'reviewing-code', dir, 'code-reviewer.md', { ISSUE: text }, REVIEW, 30, 'code-review.md');
     await client.addComment(pr.number, `<!-- factory:code-review -->\n${review}`);
     await client.setStage(n, 'stage:in-review');

@@ -44,7 +44,7 @@ function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, 
     calls.git.push({ args, cwd });
     if (args[0] === 'worktree') mkdirSync(args[args.indexOf('-B') + 2], { recursive: true });
     if (args[0] === 'rev-list') return `${commits}\n`;
-    if (args[0] === 'push' && pushError) throw new Error(pushError);
+    if (args.includes('push') && pushError) throw new Error(pushError);
     return '';
   };
   const runner = createRunner({ client, token: TOKEN, repo: 'o/r', repoDir, runsDir, runClaude, git, now: () => '2026-01-01T00:00:00.000Z' });
@@ -69,7 +69,9 @@ test('planning posts plan and review then awaits approval', async () => {
   assert.match(calls.claude[0].prompt, /note one/);
   assert.equal(readFileSync(join(runsDir, 'issue-5', 'local.properties'), 'utf8'), 'sdk.dir=/sdk\n');
   assert.deepEqual(calls.git[0], { args: ['fetch', 'origin'], cwd: repoDir });
-  assert.deepEqual(calls.git[1].args, ['worktree', 'add', '-B', 'factory/issue-5', join(runsDir, 'issue-5'), 'origin/main']);
+  assert.deepEqual(calls.git[1].args, ['worktree', 'prune']);
+  assert.deepEqual(calls.git[2].args, ['worktree', 'add', '-B', 'factory/issue-5', join(runsDir, 'issue-5'), 'origin/main']);
+  assert.equal(readFileSync(join(runsDir, 'issue-5', '.factory', '.gitignore'), 'utf8'), '*\n');
   assert.ok(!calls.claude.some((c) => /\{\{/.test(c.prompt)));
 });
 
@@ -102,8 +104,10 @@ test('building pushes, opens a PR with Closes #N and posts the code review', asy
   assert.match(b.prompt, /factory\/issue-5/);
   assert.equal(b.maxTurns, 80);
   assert.match(b.allowedTools, /Bash\(git commit:\*\)/);
-  const push = calls.git.find((g) => g.args[0] === 'push');
+  const push = calls.git.find((g) => g.args.includes('push'));
   assert.equal(push.cwd, join(runsDir, 'issue-5'));
+  assert.deepEqual(push.args.slice(0, 2), ['-c', 'credential.helper=']);
+  assert.ok(push.args.some((a) => a.startsWith('+HEAD:') && a.endsWith('factory/issue-5')));
   assert.ok(push.args.includes(`https://x-access-token:${TOKEN}@github.com/o/r.git`));
   assert.ok(push.args.some((a) => a.includes('factory/issue-5')));
   assert.deepEqual(calls.pulls, [{ head: 'factory/issue-5', title: 'Title 5', body: 'pr body\n\nCloses #5' }]);
@@ -140,7 +144,7 @@ test('a build with no commits fails and does not push', async () => {
   a.runner.enqueue(5, 'building');
   await a.runner.whenIdle();
   assert.match(a.calls.comments[0][1], /^Factory step building failed: .*no commits/);
-  assert.ok(!a.calls.git.some((g) => g.args[0] === 'push'));
+  assert.ok(!a.calls.git.some((g) => g.args.includes('push')));
 });
 
 test('enqueue refuses a ticket already queued', async () => {
@@ -177,4 +181,38 @@ test('deletes a stale output file before each step', async () => {
   assert.match(calls.comments[0][1], /Factory step planning failed: .*plan\.md/);
   assert.ok(!existsSync(join(runsDir, 'issue-5', '.factory', 'plan.md')));
   void runner;
+});
+
+test('a closed or merged PR is not reused', async () => {
+  const { runner, calls } = setup({ existingWorktree: [5], pull: { number: 31, url: 'u', state: 'closed' } });
+  runner.enqueue(5, 'building');
+  await runner.whenIdle();
+  assert.equal(calls.pulls.length, 1);
+  assert.deepEqual(calls.comments, [[77, '<!-- factory:code-review -->\nreview text']]);
+});
+
+test('bold or heading-wrapped verdicts still parse', async () => {
+  for (const v of ['**Verdict: APPROVE**', '## Verdict: APPROVE', '> _Verdict: approve_']) {
+    const { runner, calls } = setup({ outputs: { verdicts: [v] } });
+    runner.enqueue(5, 'planning');
+    await runner.whenIdle();
+    assert.equal(calls.claude.length, 2, v);
+  }
+});
+
+test('child processes get an env without GITHUB_TOKEN', async () => {
+  const saved = process.env.GITHUB_TOKEN;
+  process.env.GITHUB_TOKEN = 'leak-me';
+  try {
+    const { runner, calls } = setup();
+    runner.enqueue(5, 'planning');
+    await runner.whenIdle();
+    assert.ok(calls.claude.length > 0);
+    for (const c of calls.claude) {
+      assert.ok(c.env && !('GITHUB_TOKEN' in c.env));
+      assert.equal(c.env.PATH, process.env.PATH);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = saved;
+  }
 });
