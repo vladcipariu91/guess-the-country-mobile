@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Software Factory · guess-the-country</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236b5bff'/%3E%3Cpath d='M8 21h16M8 21l3-9h4l-1.5 9M17 21l2-6h4l-1 6' stroke='white' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="32" height="32"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M8 21h16M8 21l3-9h4l-1.5 9M17 21l2-6h4l-1 6" stroke="#fff" stroke-width="2.2" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </span>
+      <h1><span class="brand-name">Software Factory</span><span class="brand-sep" aria-hidden="true">·</span><span class="brand-repo">guess-the-country</span></h1>
+      <span class="pill pill-demo" id="demo-pill" hidden>DEMO</span>
+    </div>
+    <div class="topbar-right">
+      <div class="legend" aria-label="Legend">
+        <span class="legend-item"><span class="swatch swatch-ai"></span>AI</span>
+        <span class="legend-item"><span class="swatch swatch-you"></span>You</span>
+      </div>
+      <div class="live" id="live" data-state="connecting" title="Board refreshes every 5 seconds">
+        <span class="live-dot" aria-hidden="true"></span>
+        <span class="live-text" id="live-text">Connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" role="alert" hidden>
+    <span class="banner-icon" aria-hidden="true">!</span>
+    <span class="banner-text" id="banner-text"></span>
+  </div>
+
+  <main class="main">
+    <form class="prompt" id="prompt-form" autocomplete="off">
+      <label class="visually-hidden" for="prompt-input">Feature description</label>
+      <input id="prompt-input" class="prompt-input" type="text" maxlength="500"
+             placeholder="Describe a feature in one sentence…" spellcheck="true">
+      <button class="btn btn-primary btn-create" id="create-btn" type="submit">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="btn-label">Create ticket</span>
+      </button>
+    </form>
+
+    <section class="board-wrap" aria-label="Ticket board">
+      <div class="board" id="board"></div>
+    </section>
+
+    <section class="soon" aria-label="Coming soon">
+      <div class="soon-tile">
+        <span class="soon-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3 2.5 20h19L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.2v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </span>
+        <div class="soon-text"><b>Sentry issues</b><small>Crashes from the live app become tickets</small></div>
+        <span class="pill pill-soon">coming soon</span>
+      </div>
+      <div class="soon-tile">
+        <span class="soon-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 17l5-5 4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </span>
+        <div class="soon-text"><b>Telemetry</b><small>How players use what we ship</small></div>
+        <span class="pill pill-soon">coming soon</span>
+      </div>
+    </section>
+  </main>
+
+  <aside class="panel" id="panel" role="dialog" aria-modal="false" aria-labelledby="panel-title" hidden>
+    <header class="panel-head">
+      <div class="panel-kicker">
+        <span class="panel-num" id="panel-num"></span>
+        <span class="panel-stage" id="panel-stage"></span>
+      </div>
+      <button class="icon-btn" id="panel-close" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <h2 class="panel-title" id="panel-title"></h2>
+      <div class="panel-links" id="panel-links"></div>
+    </header>
+    <div class="panel-body" id="panel-body"></div>
+  </aside>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <noscript><p class="noscript">This dashboard needs JavaScript.</p></noscript>
+</body>
+</html>
