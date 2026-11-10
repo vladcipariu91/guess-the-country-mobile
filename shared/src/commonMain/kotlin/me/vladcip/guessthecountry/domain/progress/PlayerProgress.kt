@@ -24,6 +24,9 @@ data class PlayerProgress(
     fun canStartGame(today: LocalDate): Boolean =
         isPremium || freeGamesLeft(today) > 0 || adCredits > 0
 
+    /** True when starting a game now uses the last free game of [today], which earns the daily postmark. */
+    fun usesLastFreeGame(today: LocalDate): Boolean = !isPremium && freeGamesLeft(today) == 1
+
     /** Uses a free game if one is left today, otherwise an ad credit. */
     fun onGameStarted(today: LocalDate): PlayerProgress {
         check(canStartGame(today)) { "No free games or ad credits left" }

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(adb devices *)",
+      "Bash(adb shell *)",
+      "Bash(adb exec-out *)",
+      "Bash(xcrun simctl *)",
+      "Bash(xcodebuild *)",
+      "Bash(ktlint *)"
+    ],
+    "ask": [
+      "Bash(git push *)"
+    ],
+    "deny": [
+      "Read(local.properties)",
+      "Edit(local.properties)",
+      "Read(iosApp/Configuration/Config.xcconfig)",
+      "Edit(iosApp/Configuration/Config.xcconfig)",
+      "Read(**/.env*)",
+      "Edit(**/.env*)",
+      "Read(**/*.jks)",
+      "Read(**/*.keystore)",
+      "Read(**/keystore.properties)",
+      "Edit(**/keystore.properties)",
+      "Read(**/google-services.json)",
+      "Read(**/GoogleService-Info.plist)",
+      "Edit(**/build/**)",
+      "Edit(**/.gradle/**)",
+      "Edit(**/.kotlin/**)",
+      "Edit(**/gradle-wrapper.jar)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/guard-git.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/format-kotlin.sh",
+            "timeout": 30,
+            "statusMessage": "Formatting with ktlint"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/verify-build.sh",
+            "timeout": 300,
+            "statusMessage": "Compiling and running unit tests"
+          }
+        ]
+      }
+    ]
+  }
+}

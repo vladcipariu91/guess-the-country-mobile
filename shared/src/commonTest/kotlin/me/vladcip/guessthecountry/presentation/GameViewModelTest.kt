@@ -4,11 +4,18 @@ import me.vladcip.guessthecountry.domain.game.GameFactory
 import me.vladcip.guessthecountry.domain.game.GameMode
 import me.vladcip.guessthecountry.domain.game.HintRound
 import me.vladcip.guessthecountry.domain.game.RoundPhase
+import me.vladcip.guessthecountry.domain.passport.CountryStamp
+import me.vladcip.guessthecountry.domain.passport.StampOutcome
+import me.vladcip.guessthecountry.domain.passport.StampTier
 import me.vladcip.guessthecountry.domain.progress.PlayerProgress
+import me.vladcip.guessthecountry.testing.FakePassportRepository
 import me.vladcip.guessthecountry.testing.FakeCountryRepository
 import me.vladcip.guessthecountry.testing.FakePlayerProgressRepository
 import me.vladcip.guessthecountry.testing.FakeToday
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.datetime.LocalDate
+import me.vladcip.guessthecountry.domain.passport.PassportRepository
 import me.vladcip.guessthecountry.ads.RewardedAdResult
 import me.vladcip.guessthecountry.testing.FakeAdService
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,6 +28,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -29,6 +37,7 @@ class GameViewModelTest {
     private val progress = FakePlayerProgressRepository()
     private val today = FakeToday()
     private val ads = FakeAdService()
+    private val passport = FakePassportRepository()
 
     @BeforeTest
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -36,7 +45,50 @@ class GameViewModelTest {
     @AfterTest
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = GameViewModel(countries, progress, GameFactory(random = Random(1)), today, ads)
+    private fun viewModel(repository: PassportRepository = passport) =
+        GameViewModel(countries, progress, repository, GameFactory(random = Random(1)), today, ads)
+
+    /** Passport whose stamp writes suspend until [release] is called, to exercise the stale-game guards. */
+    private class GatedPassport(private val inner: FakePassportRepository) : PassportRepository by inner {
+        private val gate = CompletableDeferred<Unit>()
+
+        fun release() {
+            gate.complete(Unit)
+        }
+
+        override suspend fun recordStamp(countryId: String, tier: StampTier, day: LocalDate): StampOutcome {
+            gate.await()
+            return inner.recordStamp(countryId, tier, day)
+        }
+    }
+
+    /** Passport whose stamp writes fail, like a full disk would. */
+    private class FailingPassport(private val inner: FakePassportRepository) : PassportRepository by inner {
+        override suspend fun recordStamp(countryId: String, tier: StampTier, day: LocalDate): StampOutcome =
+            throw IllegalStateException("disk full")
+    }
+
+    /** Passport whose first postmark write fails, so the day's postmark is lost. */
+    private class LossyPostmarkPassport(private val inner: FakePassportRepository) : PassportRepository by inner {
+        private var failed = false
+
+        override suspend fun recordPostmark(day: LocalDate): Boolean {
+            if (!failed) {
+                failed = true
+                throw IllegalStateException("disk full")
+            }
+            return inner.recordPostmark(day)
+        }
+    }
+
+    /** Wins the first six rounds and the last one without continuing past it. */
+    private fun GameViewModel.winUntilLastRoundGuessed() {
+        repeat(6) {
+            guess(playing.game.currentRound.country)
+            continueGame()
+        }
+        guess(playing.game.currentRound.country)
+    }
 
     private val GameViewModel.playing get() = assertIs<GameUiState.Playing>(state.value)
 
@@ -100,7 +152,10 @@ class GameViewModelTest {
         val vm = viewModel()
         vm.startNewGame()
         vm.playWholeGame()
-        assertEquals(GameUiState.Finished(GameMode.GuessTheCountry, score = 35, maxScore = 35), vm.state.value)
+        val summary = assertIs<GameUiState.Finished>(vm.state.value).summary
+        assertEquals(GameMode.GuessTheCountry, summary.mode)
+        assertEquals(35, summary.score)
+        assertEquals(35, summary.maxScore)
 
         vm.exitToMenu()
         assertEquals(GameUiState.Idle, vm.state.value)
@@ -245,5 +300,294 @@ class GameViewModelTest {
         vm.nextClue()
         vm.skipToCapital()
         assertEquals(before, vm.playing.game)
+    }
+
+    private val GameViewModel.finished get() = assertIs<GameUiState.Finished>(state.value).summary
+
+    @Test
+    fun `winning a hint round stamps the country immediately`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        val country = vm.playing.game.currentRound.country
+
+        vm.guess(country)
+
+        assertEquals(listOf(CountryStamp(country.id, StampTier.FirstClue, today.date)), passport.stamps.value)
+        assertEquals(StampOutcome(StampTier.FirstClue, isNewBest = true, isFirstVisit = true), vm.playing.stamps[0])
+    }
+
+    @Test
+    fun `losing a hint round records nothing`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        vm.skipToCapital()
+        val round = vm.playing.game.currentRound
+        vm.guess(round.options.first { it != round.country })
+
+        assertTrue(vm.playing.game.currentRound.isFinished)
+        assertTrue(passport.stamps.value.isEmpty())
+        assertTrue(vm.playing.stamps.isEmpty())
+    }
+
+    @Test
+    fun `flag rounds never stamp`() {
+        val vm = viewModel()
+        vm.startNewGame(GameMode.GuessTheFlag)
+        vm.playWholeGame()
+
+        assertTrue(passport.stamps.value.isEmpty())
+        assertTrue(vm.finished.rounds.all { it.stamp == null })
+    }
+
+    @Test
+    fun `quitting keeps earned stamps`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        val country = vm.playing.game.currentRound.country
+        vm.guess(country)
+        vm.exitToMenu()
+
+        assertEquals(listOf(country.id), passport.stamps.value.map { it.countryId })
+
+        vm.startNewGame()
+        vm.playWholeGame()
+        assertEquals(7, vm.finished.rounds.size)
+    }
+
+    @Test
+    fun `summary lists rounds and first visits and score`() {
+        val vm = viewModel()
+        vm.startNewGame()
+        vm.playWholeGame()
+
+        val summary = vm.finished
+        assertEquals(7, summary.rounds.size)
+        assertEquals(summary.rounds.map { it.country }, summary.firstVisits)
+        assertEquals(7, summary.firstVisits.size)
+        assertEquals(35, summary.score)
+        assertEquals(35, summary.maxScore)
+        assertEquals(today.date, summary.playedOn)
+        assertNull(summary.postmark)
+    }
+
+    @Test
+    fun `third free game earns the postmark even if quit`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `postmark shows on the summary of the game that earned it`() {
+        val vm = viewModel()
+        repeat(2) {
+            vm.startNewGame()
+            vm.exitToMenu()
+        }
+        assertTrue(passport.postmarks.value.isEmpty())
+
+        vm.startNewGame()
+        vm.playWholeGame()
+
+        assertEquals(today.date, vm.finished.postmark)
+    }
+
+    @Test
+    fun `ad game earns no postmark`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+
+        vm.watchAd(GameMode.GuessTheCountry)
+        ads.finishAd(RewardedAdResult.Rewarded)
+
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `premium earns no postmark`() {
+        progress.progress.value = PlayerProgress(isPremium = true)
+        val vm = viewModel()
+        vm.useFreeGames()
+        assertTrue(passport.postmarks.value.isEmpty())
+
+        vm.startNewGame()
+        vm.guess(vm.playing.game.currentRound.country)
+        assertEquals(1, passport.stamps.value.size)
+    }
+
+    @Test
+    fun `a failed postmark write does not block the game`() {
+        val vm = viewModel(LossyPostmarkPassport(passport))
+        repeat(2) {
+            vm.startNewGame()
+            vm.exitToMenu()
+        }
+
+        vm.startNewGame()
+
+        assertIs<GameUiState.Playing>(vm.state.value)
+        assertTrue(passport.postmarks.value.isEmpty())
+    }
+
+    @Test
+    fun `a lost postmark is recorded at the next start that day`() {
+        val vm = viewModel(LossyPostmarkPassport(passport))
+        vm.useFreeGames()
+        assertTrue(passport.postmarks.value.isEmpty())
+
+        vm.watchAd(GameMode.GuessTheCountry)
+        ads.finishAd(RewardedAdResult.Rewarded)
+
+        assertIs<GameUiState.Playing>(vm.state.value)
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `a postmark lost to a quit during loading is recorded at the next start`() {
+        progress.progress.value = PlayerProgress(freeGamesDay = today.date, freeGamesUsed = 3, adCredits = 1)
+        val vm = viewModel()
+
+        vm.startNewGame()
+
+        assertIs<GameUiState.Playing>(vm.state.value)
+        assertEquals(listOf(today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `premium never self-heals a postmark`() {
+        progress.progress.value = PlayerProgress(isPremium = true, freeGamesDay = today.date, freeGamesUsed = 3)
+        val vm = viewModel()
+
+        vm.startNewGame()
+
+        assertTrue(passport.postmarks.value.isEmpty())
+    }
+
+    @Test
+    fun `a fresh day with games left gets no postmark early`() {
+        progress.progress.value = PlayerProgress(freeGamesDay = today.date, freeGamesUsed = 3)
+        val vm = viewModel()
+        today.advanceOneDay()
+
+        vm.startNewGame()
+        vm.exitToMenu()
+        vm.startNewGame()
+
+        assertTrue(passport.postmarks.value.isEmpty())
+    }
+
+    @Test
+    fun `postmark again on a new day`() {
+        val vm = viewModel()
+        vm.useFreeGames()
+        val day1 = today.date
+        today.advanceOneDay()
+        vm.useFreeGames()
+
+        assertEquals(listOf(day1, today.date), passport.postmarks.value)
+    }
+
+    @Test
+    fun `a failed stamp write leaves the round without a stamp and play continues`() {
+        val vm = viewModel(FailingPassport(passport))
+        vm.startNewGame()
+        vm.guess(vm.playing.game.currentRound.country)
+
+        assertTrue(vm.playing.game.currentRound.isWon)
+        assertTrue(vm.playing.stamps.isEmpty())
+        assertTrue(passport.stamps.value.isEmpty())
+
+        vm.continueGame()
+        assertEquals(2, vm.playing.game.roundNumber)
+        vm.playWholeGameFromHere()
+        assertTrue(vm.finished.rounds.all { it.stamp == null })
+        assertEquals(35, vm.finished.score)
+    }
+
+    private fun GameViewModel.playWholeGameFromHere() {
+        repeat(7 - playing.game.currentIndex) {
+            guess(playing.game.currentRound.country)
+            continueGame()
+        }
+    }
+
+    @Test
+    fun `a stamp that finishes saving after quitting is stored but not shown in the next game`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        val country = vm.playing.game.currentRound.country
+        vm.guess(country)
+        vm.exitToMenu()
+        vm.startNewGame()
+
+        gated.release()
+
+        assertTrue(vm.playing.stamps.isEmpty())
+        assertEquals(listOf(country.id), passport.stamps.value.map { it.countryId })
+    }
+
+    @Test
+    fun `results wait for the last stamp to be saved`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+
+        vm.continueGame()
+        assertIs<GameUiState.Playing>(vm.state.value)
+
+        gated.release()
+
+        val summary = vm.finished
+        assertEquals(7, summary.rounds.size)
+        assertTrue(summary.rounds.all { it.stamp != null })
+        assertEquals(7, summary.firstVisits.size)
+    }
+
+    @Test
+    fun `quitting while the last stamp is saving never shows the results`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+        vm.continueGame()
+
+        vm.exitToMenu()
+        gated.release()
+
+        assertEquals(GameUiState.Idle, vm.state.value)
+        assertEquals(7, passport.stamps.value.size)
+    }
+
+    @Test
+    fun `quitting right after winning the last round never shows the results`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+
+        vm.exitToMenu()
+        gated.release()
+
+        assertEquals(GameUiState.Idle, vm.state.value)
+        assertEquals(7, passport.stamps.value.size)
+    }
+
+    @Test
+    fun `results of an abandoned game never replace a newer game`() {
+        val gated = GatedPassport(passport)
+        val vm = viewModel(gated)
+        vm.startNewGame()
+        vm.winUntilLastRoundGuessed()
+        vm.continueGame()
+
+        vm.exitToMenu()
+        vm.startNewGame()
+        gated.release()
+
+        assertEquals(1, vm.playing.game.roundNumber)
+        assertTrue(vm.playing.stamps.isEmpty())
     }
 }

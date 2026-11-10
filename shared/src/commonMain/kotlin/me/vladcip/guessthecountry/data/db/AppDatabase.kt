@@ -9,13 +9,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 
 @Database(
-    entities = [CountryEntity::class, HintEntity::class, PlayerProgressEntity::class],
+    entities = [
+        CountryEntity::class,
+        HintEntity::class,
+        PlayerProgressEntity::class,
+        CountryStampEntity::class,
+        PostmarkEntity::class,
+        PassportEntity::class,
+    ],
     version = 1,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun countryDao(): CountryDao
     abstract fun playerProgressDao(): PlayerProgressDao
+    abstract fun passportDao(): PassportDao
 
     companion object {
         const val FILE_NAME = "guess_the_country.db"

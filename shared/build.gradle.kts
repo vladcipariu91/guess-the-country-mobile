@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
+    id("gtc.design-tokens")
 }
 
 kotlin {
@@ -13,6 +14,8 @@ kotlin {
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
         withHostTest {}
+        // Packages the Compose Multiplatform resources (fonts) into the Android app.
+        androidResources { enable = true }
     }
 
     listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
@@ -25,12 +28,16 @@ kotlin {
     }
 
     sourceSets {
+        commonMain {
+            kotlin.srcDir(tasks.named("generateDesignTokens"))
+        }
         commonMain.dependencies {
             api(project(":ads"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.ui)
             implementation(libs.compose.material3)
+            implementation(libs.compose.components.resources)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.runtime.compose)
@@ -55,6 +62,16 @@ kotlin {
     }
 }
 
+designTokens {
+    tokensFile = rootProject.layout.projectDirectory.file("design/tokens.json")
+    packageName = "me.vladcip.guessthecountry.designsystem.tokens"
+}
+
+compose.resources {
+    packageOfResClass = "me.vladcip.guessthecountry.resources"
+    publicResClass = false
+}
+
 room {
     schemaDirectory("$projectDir/schemas")
 }
@@ -63,4 +80,10 @@ dependencies {
     add("kspAndroid", libs.room.compiler)
     add("kspIosArm64", libs.room.compiler)
     add("kspIosSimulatorArm64", libs.room.compiler)
+}
+
+tasks.named("check") {
+    dependsOn("checkNoRawDesignValues", "checkTokensPublished")
+    // The token codegen, scanner and exporter tests live in the included build.
+    dependsOn(gradle.includedBuild("build-logic").task(":test"))
 }

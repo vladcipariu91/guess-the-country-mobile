@@ -1,0 +1,4 @@
+# Screen files still using raw design values; Plan C removes entries as screens migrate.
+# An entry with no violations left fails the check, so delete it once the file is clean.
+shared/src/commonMain/kotlin/me/vladcip/guessthecountry/ui/GameScreen.kt
+shared/src/commonMain/kotlin/me/vladcip/guessthecountry/ui/Screens.kt

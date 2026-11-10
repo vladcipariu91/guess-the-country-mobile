@@ -12,6 +12,8 @@ data class CountryEntity(
     @PrimaryKey val id: String,
     val name: String,
     val capital: String,
+    /** [me.vladcip.guessthecountry.domain.model.Region.name]. */
+    val region: String,
 )
 
 @Entity(
@@ -49,6 +51,40 @@ data class PlayerProgressEntity(
     val freeGamesUsed: Int,
     val adCredits: Int,
     val isPremium: Boolean,
+) {
+    companion object {
+        const val SINGLETON_ID = 0
+    }
+}
+
+@Entity(
+    tableName = "country_stamps",
+    foreignKeys = [
+        ForeignKey(
+            entity = CountryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["countryId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class CountryStampEntity(
+    @PrimaryKey val countryId: String,
+    /** [me.vladcip.guessthecountry.domain.passport.StampTier.points] of the best stamp. */
+    val bestPoints: Int,
+    val firstStampedEpochDay: Long,
+)
+
+@Entity(tableName = "postmarks")
+data class PostmarkEntity(
+    @PrimaryKey val epochDay: Long,
+)
+
+@Entity(tableName = "passport")
+data class PassportEntity(
+    @PrimaryKey val id: Int = SINGLETON_ID,
+    /** [me.vladcip.guessthecountry.domain.passport.PassportCover.name]; null until chosen. */
+    val cover: String?,
 ) {
     companion object {
         const val SINGLETON_ID = 0

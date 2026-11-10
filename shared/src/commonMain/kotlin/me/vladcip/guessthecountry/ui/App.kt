@@ -58,8 +58,8 @@ fun App(
                     )
 
                     is GameUiState.Finished -> GameOverScreen(
-                        score = state.score,
-                        maxScore = state.maxScore,
+                        score = state.summary.score,
+                        maxScore = state.summary.maxScore,
                         onMainMenu = gameViewModel::exitToMenu,
                     )
 

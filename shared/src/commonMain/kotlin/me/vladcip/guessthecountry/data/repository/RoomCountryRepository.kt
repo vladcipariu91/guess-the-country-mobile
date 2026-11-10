@@ -5,6 +5,7 @@ import me.vladcip.guessthecountry.data.db.CountryWithHints
 import me.vladcip.guessthecountry.data.seed.DatabaseSeeder
 import me.vladcip.guessthecountry.domain.model.Country
 import me.vladcip.guessthecountry.domain.model.CountryRepository
+import me.vladcip.guessthecountry.domain.model.Region
 
 class RoomCountryRepository(
     private val countryDao: CountryDao,
@@ -21,4 +22,5 @@ internal fun CountryWithHints.toDomain() = Country(
     name = country.name,
     capital = country.capital,
     hints = hints.sortedBy { it.position }.map { it.text },
+    region = Region.valueOf(country.region),
 )

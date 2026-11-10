@@ -1,6 +1,7 @@
 rootProject.name = "GuessTheCountry"
 
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         google()
         mavenCentral()

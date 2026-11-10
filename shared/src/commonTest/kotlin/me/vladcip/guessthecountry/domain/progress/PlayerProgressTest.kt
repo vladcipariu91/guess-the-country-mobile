@@ -59,4 +59,17 @@ class PlayerProgressTest {
         assertEquals(10, premium.gamesPlayed)
         assertTrue(premium.canStartGame(monday))
     }
+
+    @Test
+    fun `last free game is the third of the day`() {
+        assertFalse(PlayerProgress().usesLastFreeGame(monday))
+        assertFalse(PlayerProgress().start(1).usesLastFreeGame(monday))
+        assertTrue(PlayerProgress().start(2).usesLastFreeGame(monday))
+        assertFalse(PlayerProgress().start(3).usesLastFreeGame(monday))
+    }
+
+    @Test
+    fun `premium never uses the last free game`() {
+        assertFalse(PlayerProgress(isPremium = true).start(2).usesLastFreeGame(monday))
+    }
 }
