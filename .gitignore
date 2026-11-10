@@ -50,3 +50,6 @@ Pods/
 
 # Logs
 *.log
+
+# Software factory runtime state
+.factory/
