@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeTicket, parseWriterOutput } from '../src/writer.js';
+import { writeTicket, parseWriterOutput, defaultGitRefresh } from '../src/writer.js';
 
 const wrap = (text) => JSON.stringify({ type: 'result', result: text });
 const good = { title: 'Add a hint button', body: '## Goal\nx\n## Why it matters\ny\n## Acceptance criteria\n- [ ] z\n## Out of scope\nw' };
@@ -61,4 +61,31 @@ test('refreshes the repo before calling Claude and passes the filled prompt', as
 test('a failing git refresh does not stop the writer', async () => {
   const t = await writeTicket('p', { repoDir: '/r', gitRefresh: async () => { throw new Error('offline'); }, runClaude: async () => fenced(good) });
   assert.equal(t.fallback, false);
+});
+
+function fakeExec({ detached }) {
+  const calls = [];
+  const exec = async (cmd, args, opts) => {
+    calls.push({ cmd, args, opts });
+    if (args.includes('symbolic-ref') && detached) throw Object.assign(new Error('not a symbolic ref'), { code: 1 });
+    return { stdout: '' };
+  };
+  return { calls, exec };
+}
+
+test('skips the refresh when the repo is on a branch', async () => {
+  const { calls, exec } = fakeExec({ detached: false });
+  await defaultGitRefresh('/r', exec);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].args.includes('symbolic-ref'));
+});
+
+test('refreshes a detached repo with a timeout and no credential prompts', async () => {
+  const { calls, exec } = fakeExec({ detached: true });
+  await defaultGitRefresh('/r', exec);
+  assert.deepEqual(calls.map((c) => c.args.filter((a) => ['symbolic-ref', 'fetch', 'checkout'].includes(a))[0]), ['symbolic-ref', 'fetch', 'checkout']);
+  for (const c of calls) {
+    assert.equal(c.opts.timeout, 30000);
+    assert.equal(c.opts.env.GIT_TERMINAL_PROMPT, '0');
+  }
 });

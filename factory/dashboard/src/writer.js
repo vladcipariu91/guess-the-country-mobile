@@ -10,10 +10,19 @@ const TITLE_MAX = 60;
 export const defaultRunClaude = (fullPrompt, { cwd, timeoutMs }) =>
   runClaude(fullPrompt, { cwd, timeoutMs, allowedTools: 'Read,Grep,Glob' });
 
-// Best-effort: bring the shared checkout to the latest main. Never used for per-ticket worktrees.
-export async function defaultGitRefresh(cwd) {
-  await execFileP('git', ['-C', cwd, 'fetch', 'origin']);
-  await execFileP('git', ['-C', cwd, 'checkout', '--detach', 'origin/main']);
+// Best-effort: bring the dedicated factory checkout to the latest main.
+// repoDir must be that dedicated, detached worktree: a checkout that is on a branch
+// (a developer's checkout) is left alone. Never used for per-ticket worktrees.
+export async function defaultGitRefresh(cwd, exec = execFileP) {
+  const opts = { timeout: 30000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } };
+  try {
+    await exec('git', ['-C', cwd, 'symbolic-ref', '-q', 'HEAD'], opts);
+    return; // HEAD is on a branch: skip silently
+  } catch {
+    // non-zero exit means HEAD is detached: safe to refresh
+  }
+  await exec('git', ['-C', cwd, 'fetch', 'origin'], opts);
+  await exec('git', ['-C', cwd, 'checkout', '--detach', 'origin/main'], opts);
 }
 
 export function parseWriterOutput(stdout) {
