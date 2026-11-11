@@ -8,7 +8,7 @@ Read `CLAUDE.md` first. Implement the approved plan below, and any later notes f
 
 {{PLAN}}
 
-When the work is done and the build and tests pass, commit it on this branch (small, clear commits). Do not push, and do not call GitHub.
+Before your final commit, run `./gradlew :shared:testAndroidHostTest :ads:testAndroidHostTest :androidApp:compileDebugKotlin :shared:compileKotlinIosSimulatorArm64` and get it passing. The Stop hook only checks uncommitted changes, so a failure here would otherwise ship. When the work is done and that passes, commit it on this branch (small, clear commits). Do not push, and do not call GitHub.
 
 Then write `.factory/pr.md` (Markdown) with exactly these sections:
 

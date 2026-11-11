@@ -41,10 +41,10 @@ async function start({ client = stubClient([]), writeTicket, runner, now, public
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const bodies = [];
-  const call = async (method, path, body, raw) => {
+  const call = async (method, path, body, raw, headers) => {
     const res = await fetch(base + path, {
       method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+      headers: headers ?? (body !== undefined || raw !== undefined ? { 'Content-Type': 'application/json' } : {}),
       body: raw ?? (body !== undefined ? JSON.stringify(body) : undefined),
     });
     const text = await res.text();
@@ -203,12 +203,54 @@ test('approve enqueues a build', async () => {
   await s.close();
 });
 
-test('retry works only when blocked and re-enqueues the current stage', async () => {
-  const s = await start({ client: stubClient([issue(5, ['stage:building', 'factory:blocked']), issue(6, ['stage:building'])]) });
-  assert.equal((await s.call('POST', '/api/issues/6/actions', { action: 'retry' })).status, 409);
+test('retry works on a blocked card and re-enqueues the current stage', async () => {
+  const s = await start({ client: stubClient([issue(5, ['stage:building', 'factory:blocked'])]) });
   assert.equal((await s.call('POST', '/api/issues/5/actions', { action: 'retry' })).status, 200);
   assert.deepEqual(s.client.calls.find((c) => c[0] === 'setBlocked'), ['setBlocked', 5, false]);
   assert.deepEqual(s.enq, [[5, 'building']]);
+  await s.close();
+});
+
+test('retry works when a planning card has no runner job', async () => {
+  const s = await start({ client: stubClient([issue(6, ['stage:planning'])]) });
+  assert.equal((await s.call('POST', '/api/issues/6/actions', { action: 'retry' })).status, 200);
+  assert.deepEqual(s.enq, [[6, 'planning']]);
+  await s.close();
+});
+
+test('retry still 409 when the job is running, or from other columns', async () => {
+  const runner = { enqueue: () => true, status: () => ({ 6: { step: 'building', state: 'running', startedAt: 'x' } }) };
+  const s = await start({ runner, client: stubClient([issue(6, ['stage:building']), issue(7, ['stage:todo'])]) });
+  assert.equal((await s.call('POST', '/api/issues/6/actions', { action: 'retry' })).status, 409);
+  assert.equal((await s.call('POST', '/api/issues/7/actions', { action: 'retry' })).status, 409);
+  await s.close();
+});
+
+test('POSTs without a JSON content-type are rejected with 415', async () => {
+  const s = await start({ client: stubClient([issue(1, ['stage:todo'])]) });
+  const raw = JSON.stringify({ prompt: 'hi' });
+  for (const headers of [{ 'Content-Type': 'text/plain' }, {}]) {
+    assert.equal((await s.call('POST', '/api/tickets', undefined, raw, headers)).status, 415);
+    assert.equal((await s.call('POST', '/api/issues/1/actions', undefined, JSON.stringify({ action: 'plan' }), headers)).status, 415);
+  }
+  assert.equal(s.client.calls.filter((c) => c[0] === 'createIssue' || c[0] === 'setStage').length, 0);
+  assert.equal((await s.call('POST', '/api/tickets', undefined, raw, { 'Content-Type': 'application/json; charset=utf-8' })).status, 201);
+  await s.close();
+});
+
+test('after a write invalidates the cache, a GitHub failure still serves the last good board', async () => {
+  let t = 1_000_000;
+  let fail = false;
+  const issues = [issue(1, ['stage:todo'])];
+  const client = stubClient(issues, { listFactoryIssues: async () => { if (fail) throw new Error('boom'); return issues; } });
+  const s = await start({ client, now: () => t });
+  assert.equal((await s.call('GET', '/api/board')).status, 200);
+  assert.equal((await s.call('POST', '/api/issues/1/actions', { action: 'plan' })).status, 200);
+  fail = true;
+  const r = await s.call('GET', '/api/board');
+  assert.equal(r.status, 200);
+  assert.match(r.json.error, /boom/);
+  assert.equal(r.json.columns[0].cards.length, 1);
   await s.close();
 });
 

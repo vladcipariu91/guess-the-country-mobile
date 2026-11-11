@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,7 +7,7 @@ import { createRunner } from '../src/runner.js';
 
 const TOKEN = 'ghp_SECRET123';
 
-function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, commits = '2', failOn = null, pushError = null } = {}) {
+function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, commits = '2', failOn = null, pushError = null, spy = null, now = () => '2026-01-01T00:00:00.000Z' } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'runner-'));
   const repoDir = join(root, 'repo');
   const runsDir = join(root, 'runs');
@@ -31,6 +31,7 @@ function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, 
   };
   const runClaude = async (prompt, opts) => {
     calls.claude.push({ prompt, ...opts });
+    spy?.();
     const f = (name, text) => { mkdirSync(join(opts.cwd, '.factory'), { recursive: true }); writeFileSync(join(opts.cwd, '.factory', name), text); };
     const step = prompt.split('\n')[0];
     if (failOn && step.includes(failOn)) throw new Error(`boom ${TOKEN}`);
@@ -42,13 +43,15 @@ function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, 
   };
   const git = async (args, cwd) => {
     calls.git.push({ args, cwd });
-    if (args[0] === 'worktree') mkdirSync(args[args.indexOf('-B') + 2], { recursive: true });
+    if (args[0] === 'worktree' && args[1] === 'add') mkdirSync(args[args.indexOf('-B') + 2], { recursive: true });
     if (args[0] === 'rev-list') return `${commits}\n`;
     if (args.includes('push') && pushError) throw new Error(pushError);
     return '';
   };
-  const runner = createRunner({ client, token: TOKEN, repo: 'o/r', repoDir, runsDir, runClaude, git, now: () => '2026-01-01T00:00:00.000Z' });
-  return { runner, calls, runsDir, repoDir };
+  const ctx = {};
+  const runner = createRunner({ client, token: TOKEN, repo: 'o/r', repoDir, runsDir, runClaude, git, now });
+  ctx.runner = runner;
+  return { ctx, runner, calls, runsDir, repoDir };
 }
 
 test('planning posts plan and review then awaits approval', async () => {
@@ -104,6 +107,8 @@ test('building pushes, opens a PR with Closes #N and posts the code review', asy
   assert.match(b.prompt, /factory\/issue-5/);
   assert.equal(b.maxTurns, 80);
   assert.match(b.allowedTools, /Bash\(git commit:\*\)/);
+  assert.match(b.allowedTools, /(^|,)Agent(,|$)/);
+  assert.match(b.allowedTools, /(^|,)Task(,|$)/);
   const push = calls.git.find((g) => g.args.includes('push'));
   assert.equal(push.cwd, join(runsDir, 'issue-5'));
   assert.deepEqual(push.args.slice(0, 2), ['-c', 'credential.helper=']);
@@ -215,4 +220,56 @@ test('child processes get an env without GITHUB_TOKEN', async () => {
   } finally {
     if (saved === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = saved;
   }
+});
+
+test('default git passes timeouts: 120s generally, 300s for push', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'runner-git-'));
+  const runsDir = join(root, 'runs'); mkdirSync(runsDir);
+  const seen = [];
+  const exec = async (cmd, args, opts) => { seen.push({ args, opts }); return { stdout: args[0] === 'rev-list' ? '1\n' : '' }; };
+  const calls = [];
+  const client = {
+    getIssue: async (n) => ({ number: n, title: 't', body: '' }), getComments: async () => [],
+    addComment: async (n, b) => { calls.push(b); }, setStage: async () => {}, setBlocked: async () => {},
+    findPullForIssue: async () => null, createPull: async () => ({ number: 7 }),
+  };
+  const runClaude = async (prompt, opts) => {
+    mkdirSync(join(opts.cwd, '.factory'), { recursive: true });
+    writeFileSync(join(opts.cwd, '.factory', prompt.includes('builder') ? 'pr.md' : 'code-review.md'), 'x');
+    return '{}';
+  };
+  const runner = createRunner({ client, token: TOKEN, repo: 'o/r', repoDir: root, runsDir, runClaude, exec });
+  runner.enqueue(5, 'building');
+  await runner.whenIdle();
+  const fetch = seen.find((s) => s.args[0] === 'fetch');
+  const push = seen.find((s) => s.args.includes('push'));
+  assert.equal(fetch.opts.timeout, 120000);
+  assert.equal(push.opts.timeout, 300000);
+  assert.equal(push.opts.env.GIT_TERMINAL_PROMPT, '0');
+});
+
+test('a failed step is logged server-side, redacted', async () => {
+  const log = mock.method(console, 'error', () => {});
+  try {
+    const { runner } = setup({ failOn: 'planner' });
+    runner.enqueue(5, 'planning');
+    await runner.whenIdle();
+    const text = log.mock.calls.map((c) => c.arguments.join(' ')).join('\n');
+    assert.match(text, /\[factory\] #5 planning failed: .*boom \*\*\*/s);
+    assert.ok(!text.includes(TOKEN));
+  } finally {
+    log.mock.restore();
+  }
+});
+
+test('the job start time is reset when each step starts', async () => {
+  let tick = 0;
+  const seen = [];
+  let ctx;
+  const s = setup({ now: () => `t${tick++}`, spy: () => seen.push(ctx.runner.status()[5].startedAt) });
+  ctx = s.ctx;
+  s.runner.enqueue(5, 'planning');
+  await s.runner.whenIdle();
+  assert.equal(seen.length, 2);
+  assert.notEqual(seen[0], seen[1]);
 });

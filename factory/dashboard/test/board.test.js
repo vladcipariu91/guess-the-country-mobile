@@ -84,3 +84,29 @@ test('skips issues without a stage', () => {
   const board = buildBoard({ issues: [issue(9, [])], status: {}, pulls: {}, now });
   assert.equal(board.columns.flatMap((c) => c.cards).length, 0);
 });
+
+test('runner status only shows on planning and building cards', () => {
+  const st = { step: 'building', state: 'running', startedAt: now.toISOString() };
+  const board = buildBoard({
+    issues: [issue(1, ['stage:todo']), issue(2, ['stage:awaiting-approval']), issue(3, ['stage:in-review'])],
+    status: { 1: st, 2: st, 3: st }, pulls: {}, now,
+  });
+  assert.equal(col(board, 'todo').cards[0].chip, null);
+  assert.equal(col(board, 'awaiting-approval').cards[0].chip, 'Approve plan');
+  assert.equal(col(board, 'in-review').cards[0].chip, null);
+});
+
+test('a planning or building card with no job and not blocked is stale', () => {
+  const st = { step: 'planning', state: 'running', startedAt: now.toISOString() };
+  const board = buildBoard({
+    issues: [issue(1, ['stage:planning']), issue(2, ['stage:building']), issue(3, ['stage:building', 'factory:blocked']), issue(4, ['stage:planning']), issue(5, ['stage:todo'])],
+    status: { 4: st }, pulls: {}, now,
+  });
+  const card = (id, n) => col(board, id).cards.find((c) => c.number === n);
+  assert.equal(card('planning', 1).stale, true);
+  assert.equal(card('planning', 1).chip, 'Needs attention');
+  assert.equal(card('building', 2).stale, true);
+  assert.equal(card('building', 3).stale, false);
+  assert.equal(card('planning', 4).stale, false);
+  assert.equal(card('todo', 5).stale, false);
+});

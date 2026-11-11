@@ -28,6 +28,9 @@ for (const item of listed) {
 // Keep the hand-set status (the Building card's running chip) from the existing fixture.
 let status = {};
 try { status = JSON.parse(readFileSync(fixtureUrl, 'utf8')).status ?? {}; } catch { /* no fixture yet */ }
+// Status is keyed by issue number: drop entries whose issue isn't a planning/building card in this snapshot.
+const running = new Set(issues.filter((i) => i.state !== 'closed' && i.labels.some((l) => l === 'stage:planning' || l === 'stage:building')).map((i) => String(i.number)));
+status = Object.fromEntries(Object.entries(status).filter(([n]) => running.has(n)));
 
 writeFileSync(fixtureUrl, `${JSON.stringify({ issues, status, pulls, comments }, null, 2)}\n`);
 console.log(`Wrote ${issues.length} issues to fixtures/demo.json`);

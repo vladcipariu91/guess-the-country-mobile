@@ -9,7 +9,7 @@ const execFileP = promisify(execFile);
 const PROMPTS = new URL('../../prompts/', import.meta.url);
 const TIMEOUT = 30 * 60 * 1000;
 const READ = 'Read,Glob,Grep,Write';
-const BUILD = 'Read,Edit,Write,Glob,Grep,Task,Bash(./gradlew:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git log:*)';
+const BUILD = 'Read,Edit,Write,Glob,Grep,Agent,Task,Bash(./gradlew:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git log:*)';
 const REVIEW = 'Read,Glob,Grep,Bash(git diff:*),Bash(git log:*)';
 const PLAN_MARK = '<!-- factory:plan -->';
 
@@ -19,10 +19,10 @@ const cleanEnv = () => {
   return env;
 };
 
-export function createRunner({ client, token, repo, repoDir, runsDir, runClaude = defaultRunClaude, git, now = () => new Date().toISOString() }) {
+export function createRunner({ client, token, repo, repoDir, runsDir, runClaude = defaultRunClaude, git, exec = execFileP, now = () => new Date().toISOString() }) {
   const childEnv = cleanEnv();
   const gitEnv = { ...childEnv, GIT_TERMINAL_PROMPT: '0' };
-  git ??= async (args, cwd) => (await execFileP('git', args, { cwd, env: gitEnv, maxBuffer: 10 * 1024 * 1024 })).stdout;
+  git ??= async (args, cwd) => (await exec('git', args, { cwd, env: gitEnv, maxBuffer: 10 * 1024 * 1024, timeout: args.includes('push') ? 300000 : 120000 })).stdout;
   const jobs = new Map(); // n -> { kind, step, state, startedAt }
   const queue = [];
   let working = false;
@@ -62,6 +62,7 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
   // Runs one Claude step; returns the text of its output file.
   async function step(job, name, dir, promptFile, vars, tools, maxTurns, out) {
     job.step = name;
+    job.startedAt = now();
     const file = join(dir, '.factory', out);
     await rm(file, { force: true });
     await mkdir(join(dir, '.factory'), { recursive: true });
@@ -114,6 +115,7 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
     try {
       await (job.kind === 'planning' ? plan(n, job) : build(n, job));
     } catch (e) {
+      console.error(`[factory] #${n} ${job.step} failed: ${redact(e?.stack ?? e?.message ?? e)}`);
       const reason = redact(e?.message ?? e).replace(/\s+/g, ' ').slice(0, 300);
       try {
         await client.setBlocked(n, true);

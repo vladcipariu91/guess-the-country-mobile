@@ -1,7 +1,23 @@
 import { spawn } from 'node:child_process';
 
+// Splits "A,Bash(x, y:*),B" on commas outside parentheses.
+function splitTools(list) {
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of list) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+  }
+  out.push(cur);
+  return out.map((t) => t.trim()).filter(Boolean);
+}
+
 export function buildArgs(prompt, { allowedTools, maxTurns, settingSources = 'project,local' }) {
-  const args = ['-p', prompt, '--output-format', 'json', '--allowedTools', allowedTools, '--setting-sources', settingSources];
+  const tools = Array.isArray(allowedTools) ? allowedTools : splitTools(String(allowedTools));
+  // --allowedTools is variadic: each rule is its own argv element so spaces inside a rule survive.
+  const args = ['-p', prompt, '--output-format', 'json', '--allowedTools', ...tools, '--setting-sources', settingSources];
   if (maxTurns) args.push('--max-turns', String(maxTurns));
   return args;
 }

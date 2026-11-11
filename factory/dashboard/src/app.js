@@ -39,6 +39,9 @@ function errorMessage(err) {
 }
 
 async function readJson(req) {
+  if (!String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+    throw new HttpError(415, 'Content-Type must be application/json');
+  }
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -56,7 +59,8 @@ async function readJson(req) {
 }
 
 export function createApp({ client, writeTicket, runner, demo = false, now = Date.now, publicDir = DEFAULT_PUBLIC }) {
-  let cache = null; // { at, board }
+  let cache = null; // { at, board }: freshness only
+  let lastGood = null; // last board GitHub gave us, for the error fallback
   const invalidate = () => { cache = null; };
   const publicRoot = resolve(publicDir);
 
@@ -85,10 +89,11 @@ export function createApp({ client, writeTicket, runner, demo = false, now = Dat
     try {
       const board = await freshBoard();
       cache = { at: now(), board };
+      lastGood = board;
       return send(res, 200, { ...board, demo, error: null });
     } catch (err) {
       const error = String(err?.message ?? 'Board fetch failed');
-      if (cache) return send(res, 200, { ...cache.board, demo, error });
+      if (lastGood) return send(res, 200, { ...lastGood, demo, error });
       return send(res, 502, { error });
     }
   }
@@ -128,7 +133,8 @@ export function createApp({ client, writeTicket, runner, demo = false, now = Dat
     const column = columnFor(issue);
     const allowed = [].concat(def.from);
     const blocked = issue.labels.includes('factory:blocked');
-    if (!allowed.includes(column) || (def.requiresBlocked && !blocked)) {
+    const retryable = blocked || !runner.status()[n]; // a restart can lose the job without leaving the label
+    if (!allowed.includes(column) || (def.requiresBlocked && !retryable)) {
       throw new HttpError(409, `Cannot ${action} from this column`);
     }
     if (action === 'send-back' && typeof note === 'string' && note.trim()) {

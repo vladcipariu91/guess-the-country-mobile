@@ -11,7 +11,7 @@ const DONE_LIMIT = 10;
 
 function chipFor({ column, blocked, st, pull, now }) {
   if (blocked) return ATTENTION;
-  if (st) {
+  if (st && (column === 'planning' || column === 'building')) {
     if (st.state === 'queued') return 'Queued';
     const minutes = Math.max(0, Math.floor((now - new Date(st.startedAt)) / 60000));
     return `${STEP_LABEL[st.step] ?? 'AI working'}… ${minutes} min`;
@@ -32,13 +32,15 @@ export function buildBoard({ issues, status = {}, pulls = {}, now = new Date() }
     if (!column) continue;
     const blocked = issue.labels.includes('factory:blocked');
     const pull = pulls[issue.number] ?? null;
+    const st = status[issue.number];
     byId[column].cards.push({
       number: issue.number,
       title: issue.title,
       url: issue.url,
       column,
       blocked,
-      chip: chipFor({ column, blocked, st: status[issue.number], pull, now }),
+      stale: (column === 'planning' || column === 'building') && !blocked && !st,
+      chip: chipFor({ column, blocked, st, pull, now }),
       prNumber: pull ? pull.number : null,
       closedAt: issue.closedAt ?? null,
     });

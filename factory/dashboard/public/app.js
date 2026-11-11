@@ -231,7 +231,7 @@
   }
 
   function cardSig(card) {
-    return [card.title, card.chip, card.blocked, card.column, card.prNumber].join('\u0001');
+    return [card.title, card.chip, card.blocked, card.stale, card.column, card.prNumber].join('\u0001');
   }
 
   function updateCard(entry, card) {
@@ -250,7 +250,7 @@
     setChip(entry.chip, card.chip);
     entry.el.setAttribute('aria-label', `#${card.number} ${card.title || ''}${card.chip ? `, ${card.chip}` : ''}`);
 
-    const key = `${card.column}|${card.blocked ? 1 : 0}`;
+    const key = `${card.column}|${card.blocked ? 1 : 0}|${card.stale ? 1 : 0}`;
     if (key !== entry.actionsKey) {
       entry.actionsKey = key;
       renderActions(entry);
@@ -271,7 +271,7 @@
   }
 
   function renderActions(entry) {
-    const { column, blocked } = entry.card;
+    const { column, blocked, stale } = entry.card;
     const buttons = [];
     if (column === 'todo') buttons.push(actionButton(entry, 'Plan ▸', 'btn-ai-outline', 'plan'));
     if (column === 'awaiting-approval') {
@@ -280,7 +280,7 @@
       back.addEventListener('click', () => openSendBack(entry));
       buttons.push(back);
     }
-    if (blocked) buttons.push(actionButton(entry, 'Retry', 'btn-danger', 'retry'));
+    if (blocked || stale) buttons.push(actionButton(entry, 'Retry', 'btn-danger', 'retry'));
     entry.actions.replaceChildren(...buttons);
     syncFoot(entry);
   }

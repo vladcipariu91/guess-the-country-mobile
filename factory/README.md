@@ -1,6 +1,6 @@
 # Software factory
 
-A local conveyor belt for tickets. Vlad files a GitHub issue labelled `factory`; a dashboard on their Mac shows it
+A local conveyor belt for tickets. Vlad types a prompt into the dashboard, which files a GitHub issue labelled `factory` (an issue with only the `factory` label, made by hand, doesn't show up; it needs a `stage:` label too); the dashboard on their Mac shows it
 as a card and moves it along: an AI planner writes a plan, Vlad approves it, an AI builder implements it on its own
 branch, the server pushes and opens a PR, and an AI reviewer comments. Vlad merges. Every AI step is a headless
 `claude -p` started by the dashboard server, using the `claude` CLI's own login. One AI step runs at a time. Claude
@@ -27,9 +27,10 @@ Done = issue closed. Each ticket gets a worktree at `guess-the-country/factory-r
    read/write.
 2. Copy `dashboard/.env.example` to `dashboard/.env` and paste the token as `GITHUB_TOKEN`. `.env` is git-ignored.
 3. Check the CLI login: `claude auth status` must show `loggedIn: true` (otherwise `claude auth login`).
-4. Run the dashboard from a dedicated detached worktree of main, in your own terminal:
-   `git worktree add --detach ../factory-worktree origin/main`, then `cd ../factory-worktree/factory/dashboard`
-   (put the `.env` there).
+4. Run the dashboard from a dedicated detached worktree of main, in your own terminal. Run the worktree command from
+   the `mobile-app/` checkout: `git worktree add --detach ../factory-worktree origin/main`. Then copy
+   `local.properties` into `../factory-worktree` (the per-ticket worktrees copy it from there; otherwise they rely on
+   `ANDROID_HOME`), and `cd ../factory-worktree/factory/dashboard` (put the `.env` there).
 
 ## Run (from `factory/dashboard`)
 
