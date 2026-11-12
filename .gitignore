@@ -8,6 +8,7 @@ build/
 local.properties
 .env
 .env.*
+!.env.example
 
 # IDEs
 .idea/
@@ -50,3 +51,6 @@ Pods/
 
 # Logs
 *.log
+
+# Software factory runtime state
+.factory/

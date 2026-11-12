@@ -1,0 +1,12 @@
+{
+  "name": "factory-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "test": "node --test",
+    "setup": "node --env-file=.env src/setup-labels.js",
+    "snapshot": "node --env-file=.env src/snapshot.js"
+  }
+}
