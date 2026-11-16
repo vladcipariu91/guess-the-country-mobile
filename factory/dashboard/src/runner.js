@@ -10,7 +10,8 @@ const PROMPTS = new URL('../../prompts/', import.meta.url);
 const TIMEOUT = 30 * 60 * 1000;
 const READ = 'Read,Glob,Grep,Write';
 const BUILD = 'Read,Edit,Write,Glob,Grep,Agent,Task,Bash(./gradlew:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git log:*)';
-const REVIEW = 'Read,Glob,Grep,Bash(git diff:*),Bash(git log:*)';
+// Write is needed for the reviewer's own .factory/code-review.md; the prompt forbids other changes.
+const REVIEW = 'Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*)';
 const PLAN_MARK = '<!-- factory:plan -->';
 
 const cleanEnv = () => {
@@ -98,9 +99,18 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
     const { title, text, plan: approved } = await issueText(n);
     const planBlock = approved ? `## Approved plan (latest, from the issue comments)\n\n${approved}` : '';
     const branch = `factory/issue-${n}`;
-    const prBody = await step(job, 'building', dir, 'builder.md', { ISSUE: text, PLAN: planBlock, NUMBER: String(n) }, BUILD, 80, 'pr.md');
-    const count = Number((await git(['rev-list', '--count', 'origin/main..HEAD'], dir)).trim());
-    if (!count) throw new Error('builder made no commits');
+    const commits = async () => Number((await git(['rev-list', '--count', 'origin/main..HEAD'], dir)).trim());
+    // A retry after a finished build (pr.md written, commits made) resumes at the push and code review.
+    // step() deletes pr.md before each build, so an unfinished build never leaves one behind.
+    const prFile = join(dir, '.factory', 'pr.md');
+    let prBody;
+    if (existsSync(prFile) && (await commits()) > 0) {
+      job.step = 'building';
+      prBody = await readFile(prFile, 'utf8');
+    } else {
+      prBody = await step(job, 'building', dir, 'builder.md', { ISSUE: text, PLAN: planBlock, NUMBER: String(n) }, BUILD, 80, 'pr.md');
+      if (!(await commits())) throw new Error('builder made no commits');
+    }
     await git(['-c', 'credential.helper=', 'push', `https://x-access-token:${token}@github.com/${repo}.git`, `+HEAD:refs/heads/${branch}`], dir);
     const found = await client.findPullForIssue(n);
     const pr = found?.state === 'open' ? found : (await client.createPull({ head: branch, title, body: `${prBody}\n\nCloses #${n}` }));

@@ -118,7 +118,30 @@ test('building pushes, opens a PR with Closes #N and posts the code review', asy
   assert.deepEqual(calls.pulls, [{ head: 'factory/issue-5', title: 'Title 5', body: 'pr body\n\nCloses #5' }]);
   assert.deepEqual(calls.comments, [[77, '<!-- factory:code-review -->\nreview text']]);
   assert.deepEqual(calls.stages, [[5, 'stage:in-review']]);
-  assert.equal(calls.claude[1].allowedTools, 'Read,Glob,Grep,Bash(git diff:*),Bash(git log:*)');
+  assert.equal(calls.claude[1].allowedTools, 'Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*)');
+});
+
+test('retrying after a finished build skips the builder and only reviews', async () => {
+  const { runner, calls, runsDir } = setup({ existingWorktree: [5], pull: { number: 31, url: 'u', state: 'open' } });
+  mkdirSync(join(runsDir, 'issue-5', '.factory'));
+  writeFileSync(join(runsDir, 'issue-5', '.factory', 'pr.md'), 'earlier pr body');
+  runner.enqueue(5, 'building');
+  await runner.whenIdle();
+  assert.equal(calls.claude.length, 1);
+  assert.match(calls.claude[0].prompt, /code reviewer/);
+  assert.ok(calls.git.some((g) => g.args.includes('push')));
+  assert.deepEqual(calls.comments, [[31, '<!-- factory:code-review -->\nreview text']]);
+  assert.deepEqual(calls.stages, [[5, 'stage:in-review']]);
+});
+
+test('a leftover pr.md with no commits still runs the builder', async () => {
+  const { runner, calls, runsDir } = setup({ existingWorktree: [5], commits: '0' });
+  mkdirSync(join(runsDir, 'issue-5', '.factory'));
+  writeFileSync(join(runsDir, 'issue-5', '.factory', 'pr.md'), 'stale');
+  runner.enqueue(5, 'building');
+  await runner.whenIdle();
+  assert.match(calls.claude[0].prompt, /builder/);
+  assert.match(calls.comments[0][1], /builder made no commits/);
 });
 
 test('retrying a build reuses the existing worktree branch and PR', async () => {
