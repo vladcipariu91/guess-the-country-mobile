@@ -10,6 +10,9 @@ Read `CLAUDE.md` first, then the relevant code. You may only read files, plus wr
 
 Write `.factory/plan.md` (Markdown) with exactly these sections, in this order:
 
+- `## Summary`: 3 to 5 short bullets that someone can read in 30 seconds to decide whether to approve.
+  Plain language, no file paths, class names or code. Cover what the player will see, how it works in
+  one line, how it will be tested, and the biggest risk (or "no real risks").
 - `## Approach`: how the change will work, in a few short paragraphs.
 - `## Files`: each file to create or change, one line each, with what changes.
 - `## Tests`: the tests to write first (failing) and what each proves.
