@@ -11,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import me.vladcip.guessthecountry.designsystem.theme.GtcTheme
 import me.vladcip.guessthecountry.designsystem.tokens.Border
 import me.vladcip.guessthecountry.designsystem.tokens.Radius
@@ -20,17 +22,20 @@ import me.vladcip.guessthecountry.designsystem.tokens.Tilt
 
 /**
  * One of the day's free entries (P-Menu). [usedOn] null shows a dashed "FREE" slot; otherwise a
- * tilted red "USED <date>" stamp. Give it `Modifier.weight(1f)` to share a row with its siblings.
+ * tilted red "USED dd.MM" stamp (pass only the date, e.g. "17.11"). Screen readers announce
+ * [contentDescription] in place of the slot's text. Give it `Modifier.weight(1f)` to share a row with its siblings.
  */
 @Composable
 fun EntrySlot(
     usedOn: String?,
+    contentDescription: String,
     modifier: Modifier = Modifier,
 ) {
     val colors = GtcTheme.colors
     val typography = GtcTheme.typography
     Box(
         modifier = modifier
+            .clearAndSetSemantics { this.contentDescription = contentDescription }
             .fillMaxWidth()
             .height(Size.Slot)
             .then(

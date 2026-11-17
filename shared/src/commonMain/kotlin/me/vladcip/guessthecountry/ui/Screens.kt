@@ -1,5 +1,6 @@
 package me.vladcip.guessthecountry.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -21,7 +23,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import me.vladcip.guessthecountry.designsystem.components.EntrySlot
+import me.vladcip.guessthecountry.designsystem.theme.GtcTheme
+import me.vladcip.guessthecountry.designsystem.tokens.Radius
+import me.vladcip.guessthecountry.designsystem.tokens.Space
 import me.vladcip.guessthecountry.domain.game.GameMode
+import me.vladcip.guessthecountry.domain.passport.PassportCover
+import me.vladcip.guessthecountry.domain.progress.EntrySlotState
 import me.vladcip.guessthecountry.domain.progress.PlayerProgress
 import me.vladcip.guessthecountry.presentation.HomeUiState
 
@@ -41,6 +49,7 @@ fun MainMenuScreen(
         )
     }
     Text("7 countries per game. Pick a mode:", textAlign = TextAlign.Center)
+    if (state.entrySlots.isNotEmpty()) EntrySlotRow(state.entrySlots)
     if (state.canPlay) {
         ModeButton(GameMode.GuessTheCountry, "Guess the country", onPlay)
         Text(
@@ -50,15 +59,8 @@ fun MainMenuScreen(
         )
         ModeButton(GameMode.GuessTheFlag, "Guess the flag", onPlay)
         Text("Name the flag: 1 point each.", style = MaterialTheme.typography.bodySmall)
-        if (!state.isPremium) {
-            Text(
-                if (state.freeGamesLeft > 0) {
-                    "${state.freeGamesLeft} of ${PlayerProgress.FREE_GAMES_PER_DAY} free games left today"
-                } else {
-                    "Ad game unlocked"
-                },
-                style = MaterialTheme.typography.bodySmall,
-            )
+        if (!state.isPremium && state.freeGamesLeft == 0) {
+            Text("Ad game unlocked", style = MaterialTheme.typography.bodySmall)
         }
     } else {
         Text(
@@ -68,6 +70,25 @@ fun MainMenuScreen(
         ModeButton(GameMode.GuessTheCountry, "Watch an ad to play Guess the country", onWatchAd)
         ModeButton(GameMode.GuessTheFlag, "Watch an ad to play Guess the flag", onWatchAd)
         OutlinedButton(onClick = onUpgrade, modifier = Modifier.fillMaxWidth()) { Text("Upgrade") }
+    }
+}
+
+/**
+ * Today's free games, used ones stamped from the left, on a strip of passport cover. [App] doesn't
+ * provide [GtcTheme] yet, so the row provides it, plus the cover background its on-cover colours need.
+ */
+@Composable
+private fun EntrySlotRow(slots: List<EntrySlotState>) = GtcTheme(cover = PassportCover.Burgundy) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(GtcTheme.colors.cover, RoundedCornerShape(Radius.R12))
+            .padding(Space.S12),
+        horizontalArrangement = Arrangement.spacedBy(Space.S8),
+    ) {
+        slots.forEach { slot ->
+            EntrySlot(usedOn = slot.usedOn, contentDescription = slot.description, modifier = Modifier.weight(1f))
+        }
     }
 }
 

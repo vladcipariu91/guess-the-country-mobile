@@ -379,11 +379,11 @@ private fun ComponentsOnCover() {
         ModeCard("Flags", "Flag round", "Name the country from its flag.", "Quick", colors.stamp.tier4, 3f, onClick = {})
         ModeCard("Practice", "Free play", "A very long description that has to wrap onto a second and third line to show how the card grows.", "Soon", colors.stamp.missed, -6f, onClick = {})
 
-        SubLabel("EntrySlot: free, used")
+        SubLabel("EntrySlot: used, free")
         Row(horizontalArrangement = Arrangement.spacedBy(Space.S8)) {
-            EntrySlot(usedOn = null, modifier = Modifier.weight(1f))
-            EntrySlot(usedOn = "12 Oct", modifier = Modifier.weight(1f))
-            EntrySlot(usedOn = null, modifier = Modifier.weight(1f))
+            EntrySlot(usedOn = "17.11", contentDescription = "Free game 1, used today", modifier = Modifier.weight(1f))
+            EntrySlot(usedOn = null, contentDescription = "Free game 2, available", modifier = Modifier.weight(1f))
+            EntrySlot(usedOn = null, contentDescription = "Free game 3, available", modifier = Modifier.weight(1f))
         }
 
         SubLabel("GtcProgressBar on cover: 0, 40%, 100%")
