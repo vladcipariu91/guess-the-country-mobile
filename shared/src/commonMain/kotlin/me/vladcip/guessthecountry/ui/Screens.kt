@@ -33,6 +33,13 @@ fun MainMenuScreen(
     onUpgrade: () -> Unit,
 ) = CenteredColumn {
     Text("Guess the Country", style = MaterialTheme.typography.headlineLarge)
+    state.passportProgress?.let {
+        Text(
+            "${it.stamped} of ${it.total} countries (${it.percent}%)",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+        )
+    }
     Text("7 countries per game. Pick a mode:", textAlign = TextAlign.Center)
     if (state.canPlay) {
         ModeButton(GameMode.GuessTheCountry, "Guess the country", onPlay)
