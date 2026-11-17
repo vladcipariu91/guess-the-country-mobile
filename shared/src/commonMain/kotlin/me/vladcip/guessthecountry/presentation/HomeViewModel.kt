@@ -6,9 +6,11 @@ import me.vladcip.guessthecountry.domain.model.CountryRepository
 import me.vladcip.guessthecountry.domain.passport.PassportProgress
 import me.vladcip.guessthecountry.domain.passport.PassportRepository
 import me.vladcip.guessthecountry.domain.passport.passportProgressOf
+import me.vladcip.guessthecountry.domain.progress.EntrySlotState
 import me.vladcip.guessthecountry.domain.progress.PlayerProgress
 import me.vladcip.guessthecountry.domain.progress.PlayerProgressRepository
 import me.vladcip.guessthecountry.domain.progress.TodayProvider
+import me.vladcip.guessthecountry.domain.progress.entrySlotsOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +19,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.datetime.LocalDate
+
+/** All free: the date is only shown on used slots, so any day works before the first emission. */
+private val DEFAULT_SLOTS = entrySlotsOf(usedToday = 0, today = LocalDate(2000, 1, 1))
 
 data class HomeUiState(
     /** False once today's free games and ad credits are used up: show "watch an ad" and "Upgrade". */
@@ -27,9 +32,8 @@ data class HomeUiState(
     val stampedCount: Int = 0,
     /** 0 when the countries fail to load: show progress only through [passportProgress]. */
     val totalCountries: Int = 0,
-    /** Free entries already used [today], for the "USED dd.MM" slots. */
-    val freeGamesUsedToday: Int = 0,
-    val today: LocalDate? = null,
+    /** Today's free games as "FREE" / "USED dd.MM" slots; empty for premium players. */
+    val entrySlots: List<EntrySlotState> = DEFAULT_SLOTS,
     /** The main menu's "X of Y countries" line; `null` (hidden) when the countries fail to load. */
     val passportProgress: PassportProgress? = null,
 )
@@ -58,8 +62,11 @@ class HomeViewModel(
             isPremium = progress.isPremium,
             stampedCount = stamps.size,
             totalCountries = ids.size,
-            freeGamesUsedToday = PlayerProgress.FREE_GAMES_PER_DAY - progress.freeGamesLeft(day),
-            today = day,
+            entrySlots = if (progress.isPremium) {
+                emptyList()
+            } else {
+                entrySlotsOf(PlayerProgress.FREE_GAMES_PER_DAY - progress.freeGamesLeft(day), day)
+            },
             passportProgress = passportProgressOf(stamps, ids),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())

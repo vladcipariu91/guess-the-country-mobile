@@ -4,6 +4,7 @@ import app.cash.turbine.test
 import me.vladcip.guessthecountry.domain.passport.PassportProgress
 import me.vladcip.guessthecountry.domain.passport.StampTier
 import me.vladcip.guessthecountry.domain.progress.PlayerProgress
+import me.vladcip.guessthecountry.domain.progress.entrySlotsOf
 import me.vladcip.guessthecountry.testing.FakeCountryRepository
 import me.vladcip.guessthecountry.testing.FakePassportRepository
 import me.vladcip.guessthecountry.testing.FakePlayerProgressRepository
@@ -33,14 +34,13 @@ class HomeViewModelTest {
     private fun expected(
         canPlay: Boolean,
         freeGamesLeft: Int,
-        freeGamesUsedToday: Int = 3 - freeGamesLeft,
+        usedToday: Int = 3 - freeGamesLeft,
         passportProgress: PassportProgress? = PassportProgress(0, 21),
     ) = HomeUiState(
         canPlay = canPlay,
         freeGamesLeft = freeGamesLeft,
         totalCountries = 21,
-        freeGamesUsedToday = freeGamesUsedToday,
-        today = today.date,
+        entrySlots = entrySlotsOf(usedToday, today.date),
         passportProgress = passportProgress,
     )
 
@@ -63,7 +63,7 @@ class HomeViewModelTest {
             assertEquals(expected(canPlay = false, freeGamesLeft = 0), awaitItem())
 
             progress.recordAdWatched()
-            assertEquals(expected(canPlay = true, freeGamesLeft = 0, freeGamesUsedToday = 3), awaitItem())
+            assertEquals(expected(canPlay = true, freeGamesLeft = 0, usedToday = 3), awaitItem())
         }
     }
 
@@ -91,8 +91,7 @@ class HomeViewModelTest {
             val state = awaitItem()
             assertEquals(3, state.stampedCount)
             assertEquals(21, state.totalCountries)
-            assertEquals(2, state.freeGamesUsedToday)
-            assertEquals(FakeToday().date, state.today)
+            assertEquals(listOf("19.10", "19.10", null), usedOn(state))
         }
     }
 
@@ -178,6 +177,71 @@ class HomeViewModelTest {
             val state = expectMostRecentItem()
             assertEquals(false, state.canPlay)
             assertEquals(PassportProgress(0, 21), state.passportProgress)
+        }
+    }
+
+    private fun usedOn(state: HomeUiState) = state.entrySlots.map { it.usedOn }
+
+    @Test
+    fun `new player sees 3 free slots`() = runTest {
+        homeViewModel().state.test {
+            assertEquals(listOf(null, null, null), usedOn(expectMostRecentItem()))
+        }
+    }
+
+    @Test
+    fun `slots stamp as free games are played`() = runTest {
+        val vm = homeViewModel()
+
+        vm.state.test {
+            assertEquals(listOf(null, null, null), usedOn(awaitItem()))
+
+            progress.recordGameStarted(today.date)
+            assertEquals(listOf("19.10", null, null), usedOn(awaitItem()))
+
+            progress.recordGameStarted(today.date)
+            assertEquals(listOf("19.10", "19.10", null), usedOn(awaitItem()))
+        }
+    }
+
+    @Test
+    fun `all slots stay stamped when an ad unlocks a game`() = runTest {
+        repeat(3) { progress.recordGameStarted(today.date) }
+        progress.recordAdWatched()
+
+        homeViewModel().state.test {
+            val state = expectMostRecentItem()
+            assertEquals(true, state.canPlay)
+            assertEquals(0, state.freeGamesLeft)
+            assertEquals(listOf("19.10", "19.10", "19.10"), usedOn(state))
+        }
+    }
+
+    @Test
+    fun `refresh after midnight clears the stamps`() = runTest {
+        repeat(3) { progress.recordGameStarted(today.date) }
+        val vm = homeViewModel()
+
+        vm.state.test {
+            assertEquals(listOf("19.10", "19.10", "19.10"), usedOn(expectMostRecentItem()))
+
+            today.advanceOneDay()
+            vm.refresh()
+            assertEquals(listOf(null, null, null), usedOn(awaitItem()))
+        }
+    }
+
+    @Test
+    fun `premium players get no slots`() = runTest {
+        val premium = HomeViewModel(
+            FakePlayerProgressRepository(PlayerProgress(isPremium = true)),
+            passport,
+            countries,
+            today,
+        )
+
+        premium.state.test {
+            assertEquals(emptyList(), expectMostRecentItem().entrySlots)
         }
     }
 }
