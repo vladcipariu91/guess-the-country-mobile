@@ -3,6 +3,8 @@ package me.vladcip.guessthecountry.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import me.vladcip.guessthecountry.domain.model.CountryRepository
+import me.vladcip.guessthecountry.domain.model.countryOfTheDay
+import me.vladcip.guessthecountry.domain.model.flag
 import me.vladcip.guessthecountry.domain.passport.PassportProgress
 import me.vladcip.guessthecountry.domain.passport.PassportRepository
 import me.vladcip.guessthecountry.domain.passport.passportProgressOf
@@ -32,7 +34,12 @@ data class HomeUiState(
     val today: LocalDate? = null,
     /** The main menu's "X of Y countries" line; `null` (hidden) when the countries fail to load. */
     val passportProgress: PassportProgress? = null,
+    /** The main menu's "Country of the day" line; `null` (hidden) when the countries fail to load. */
+    val countryOfTheDay: CountryOfTheDay? = null,
 )
+
+/** What the menu shows for today's country: its flag emoji and name. */
+data class CountryOfTheDay(val flag: String, val name: String)
 
 class HomeViewModel(
     progressRepository: PlayerProgressRepository,
@@ -42,16 +49,17 @@ class HomeViewModel(
 ) : ViewModel() {
     private val today = MutableStateFlow(todayProvider.today())
 
-    // A failed country read only costs the passport total and progress line; the menu must still work.
-    private val countryIds = flow { emit(countryRepository.getAllCountries().map { it.id }.toSet()) }
-        .catch { emit(emptySet()) }
+    // A failed country read only costs the passport and country-of-the-day lines; the menu must still work.
+    private val countries = flow { emit(countryRepository.getAllCountries()) }
+        .catch { emit(emptyList()) }
 
     val state: StateFlow<HomeUiState> = combine(
         progressRepository.progress,
         today,
         passportRepository.stamps,
-        countryIds,
-    ) { progress, day, stamps, ids ->
+        countries,
+    ) { progress, day, stamps, countries ->
+        val ids = countries.map { it.id }.toSet()
         HomeUiState(
             canPlay = progress.canStartGame(day),
             freeGamesLeft = progress.freeGamesLeft(day),
@@ -61,6 +69,7 @@ class HomeViewModel(
             freeGamesUsedToday = PlayerProgress.FREE_GAMES_PER_DAY - progress.freeGamesLeft(day),
             today = day,
             passportProgress = passportProgressOf(stamps, ids),
+            countryOfTheDay = countryOfTheDay(countries, day)?.let { CountryOfTheDay(flag = it.flag, name = it.name) },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 

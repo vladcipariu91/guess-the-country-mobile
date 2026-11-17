@@ -11,6 +11,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.vladcip.guessthecountry.presentation.GameUiState
 import me.vladcip.guessthecountry.presentation.GameViewModel
@@ -32,6 +34,9 @@ fun App(
     LaunchedEffect(gameState) {
         if (gameState == GameUiState.Idle) homeViewModel.refresh()
     }
+
+    // Coming back to the foreground after midnight shows the new day's menu (e.g. the country of the day).
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { homeViewModel.refresh() }
 
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {

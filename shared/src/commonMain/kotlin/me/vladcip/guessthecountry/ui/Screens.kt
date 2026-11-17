@@ -40,6 +40,13 @@ fun MainMenuScreen(
             textAlign = TextAlign.Center,
         )
     }
+    state.countryOfTheDay?.let {
+        Text(
+            "Country of the day: ${it.flag} ${it.name}",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+        )
+    }
     Text("7 countries per game. Pick a mode:", textAlign = TextAlign.Center)
     if (state.canPlay) {
         ModeButton(GameMode.GuessTheCountry, "Guess the country", onPlay)

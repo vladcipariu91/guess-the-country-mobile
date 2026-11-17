@@ -1,6 +1,8 @@
 package me.vladcip.guessthecountry.presentation
 
 import app.cash.turbine.test
+import me.vladcip.guessthecountry.domain.model.countryOfTheDay
+import me.vladcip.guessthecountry.domain.model.flag
 import me.vladcip.guessthecountry.domain.passport.PassportProgress
 import me.vladcip.guessthecountry.domain.passport.StampTier
 import me.vladcip.guessthecountry.domain.progress.PlayerProgress
@@ -19,6 +21,8 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -42,7 +46,11 @@ class HomeViewModelTest {
         freeGamesUsedToday = freeGamesUsedToday,
         today = today.date,
         passportProgress = passportProgress,
+        countryOfTheDay = expectedCountryOfTheDay(),
     )
+
+    private fun expectedCountryOfTheDay() =
+        countryOfTheDay(countries.countries, today.date)?.let { CountryOfTheDay(flag = it.flag, name = it.name) }
 
     @BeforeTest
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -153,6 +161,7 @@ class HomeViewModelTest {
         homeViewModel().state.test {
             val state = expectMostRecentItem()
             assertNull(state.passportProgress)
+            assertNull(state.countryOfTheDay)
             assertEquals(0, state.totalCountries)
             assertEquals(true, state.canPlay)
             assertEquals(3, state.freeGamesLeft)
@@ -171,6 +180,7 @@ class HomeViewModelTest {
             val state = expectMostRecentItem()
             assertEquals(true, state.isPremium)
             assertEquals(PassportProgress(0, 21), state.passportProgress)
+            assertNotNull(state.countryOfTheDay)
         }
 
         repeat(3) { progress.recordGameStarted(today.date) }
@@ -178,6 +188,51 @@ class HomeViewModelTest {
             val state = expectMostRecentItem()
             assertEquals(false, state.canPlay)
             assertEquals(PassportProgress(0, 21), state.passportProgress)
+            assertNotNull(state.countryOfTheDay)
+        }
+    }
+
+    @Test
+    fun `shows today's country with flag and name`() = runTest {
+        val country = assertNotNull(countryOfTheDay(countries.countries, today.date))
+
+        homeViewModel().state.test {
+            assertEquals(
+                CountryOfTheDay(flag = country.flag, name = country.name),
+                expectMostRecentItem().countryOfTheDay,
+            )
+        }
+    }
+
+    @Test
+    fun `refresh on the same day keeps the country`() = runTest {
+        val vm = homeViewModel()
+
+        vm.state.test {
+            val first = expectMostRecentItem().countryOfTheDay
+            vm.refresh()
+            expectNoEvents()
+            assertEquals(first, vm.state.value.countryOfTheDay)
+        }
+
+        // Reopening the app on the same day builds a new view model with the same country.
+        homeViewModel().state.test {
+            assertEquals(expectedCountryOfTheDay(), expectMostRecentItem().countryOfTheDay)
+        }
+    }
+
+    @Test
+    fun `refresh on a new day shows the next country`() = runTest {
+        val vm = homeViewModel()
+
+        vm.state.test {
+            val yesterday = assertNotNull(expectMostRecentItem().countryOfTheDay)
+
+            today.advanceOneDay()
+            vm.refresh()
+            val next = awaitItem().countryOfTheDay
+            assertNotEquals(yesterday, next)
+            assertEquals(expectedCountryOfTheDay(), next)
         }
     }
 }
