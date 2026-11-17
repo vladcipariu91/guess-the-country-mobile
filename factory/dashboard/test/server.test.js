@@ -32,11 +32,11 @@ function stubClient(issues, overrides = {}) {
   return client;
 }
 
-async function start({ client = stubClient([]), writeTicket, runner, now, publicDir, demo = false } = {}) {
+async function start({ client = stubClient([]), writeTicket, runner, now, publicDir, runsDir, demo = false } = {}) {
   const enq = [];
   runner ??= { enqueue: (n, s) => { enq.push([n, s]); return true; }, status: () => ({}) };
   writeTicket ??= async (p) => ({ title: `T:${p}`, body: `B:${p}`, fallback: false });
-  const app = createApp({ client, writeTicket, runner, demo, now, publicDir });
+  const app = createApp({ client, writeTicket, runner, runsDir, demo, now, publicDir });
   const server = http.createServer(app);
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -315,4 +315,35 @@ test('demo: fake runner moves a planned card on and keeps fixture chips', async 
   assert.ok(detail.comments.some((c) => c.kind === 'code-review'));
   assert.ok(detail.comments.some((c) => c.kind === 'plan'));
   await s.close();
+});
+
+test('GET /api/issues/:n/summary serves the worktree summary page, 404 when missing', async () => {
+  const runsDir = mkdtempSync(join(tmpdir(), 'runs-'));
+  mkdirSync(join(runsDir, 'issue-7', '.factory'), { recursive: true });
+  writeFileSync(join(runsDir, 'issue-7', '.factory', 'summary.html'), '<html>sum</html>');
+  const { call, close } = await start({ runsDir });
+  try {
+    const ok = await call('GET', '/api/issues/7/summary');
+    assert.equal(ok.status, 200);
+    assert.match(ok.type, /text\/html/);
+    assert.equal(ok.text, '<html>sum</html>');
+    assert.equal((await call('GET', '/api/issues/8/summary')).status, 404);
+  } finally { await close(); }
+});
+
+test('GET /api/issues/:n/summary is 404 without a runs dir (demo)', async () => {
+  const { call, close } = await start();
+  try { assert.equal((await call('GET', '/api/issues/7/summary')).status, 404); } finally { await close(); }
+});
+
+test('a summary comment gets the summary kind', async () => {
+  const client = stubClient([issue(4, ['stage:in-review'])], {
+    getComments: async () => [{ author: 'bot', body: '<!-- factory:summary -->\n[Open the summary](http://localhost:4321/api/issues/4/summary)', createdAt: '2026-01-01' }],
+  });
+  const { call, close } = await start({ client });
+  try {
+    const { json } = await call('GET', '/api/issues/4');
+    assert.equal(json.comments[0].kind, 'summary');
+    assert.doesNotMatch(json.comments[0].body, /factory:summary/);
+  } finally { await close(); }
 });

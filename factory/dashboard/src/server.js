@@ -31,11 +31,11 @@ if (demo) {
     process.exit(1);
   }
   client = createGitHubClient({ token, repo });
-  runner = createRunner({ client, token, repo, repoDir, runsDir });
+  runner = createRunner({ client, token, repo, repoDir, runsDir, summaryUrl: (n) => `http://localhost:${port}/api/issues/${n}/summary` });
   write = (prompt) => writeTicket(prompt, { repoDir });
 }
 
-const server = http.createServer(createApp({ client, writeTicket: write, runner, demo }));
+const server = http.createServer(createApp({ client, writeTicket: write, runner, runsDir: demo ? null : runsDir, demo }));
 server.listen(port, '127.0.0.1', () => {
   console.log(`Factory dashboard: http://localhost:${server.address().port}${demo ? ' (DEMO)' : ''}`);
 });

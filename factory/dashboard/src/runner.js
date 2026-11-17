@@ -12,7 +12,10 @@ const READ = 'Read,Glob,Grep,Write';
 const BUILD = 'Read,Edit,Write,Glob,Grep,Agent,Task,Bash(./gradlew:*),Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git log:*)';
 // Write is needed for the reviewer's own .factory/code-review.md; the prompt forbids other changes.
 const REVIEW = 'Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*)';
+// Screenshots (run-app), before shots on origin/main, and rendering the summary page.
+const SUMMARY = 'Read,Glob,Grep,Write,Bash(bash .claude/skills/run-app/scripts/run.sh:*),Bash(python3 -I .claude/skills/summary/scripts/render.py:*),Bash(git checkout:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(cp:*),Bash(./gradlew:*)';
 const PLAN_MARK = '<!-- factory:plan -->';
+const SUMMARY_MARK = '<!-- factory:summary -->';
 
 const cleanEnv = () => {
   const env = { ...process.env };
@@ -20,7 +23,7 @@ const cleanEnv = () => {
   return env;
 };
 
-export function createRunner({ client, token, repo, repoDir, runsDir, runClaude = defaultRunClaude, git, exec = execFileP, now = () => new Date().toISOString() }) {
+export function createRunner({ client, token, repo, repoDir, runsDir, summaryUrl = (n) => `http://localhost:4321/api/issues/${n}/summary`, runClaude = defaultRunClaude, git, exec = execFileP, now = () => new Date().toISOString() }) {
   const childEnv = cleanEnv();
   const gitEnv = { ...childEnv, GIT_TERMINAL_PROMPT: '0' };
   git ??= async (args, cwd) => (await exec('git', args, { cwd, env: gitEnv, maxBuffer: 10 * 1024 * 1024, timeout: args.includes('push') ? 300000 : 120000 })).stdout;
@@ -94,6 +97,17 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
     await client.setStage(n, 'stage:awaiting-approval');
   }
 
+  // The summary step checks out origin/main for before shots; it must leave the branch as the builder left it.
+  async function summarize(n, job, dir, text, branch) {
+    const head = (await git(['rev-parse', 'HEAD'], dir)).trim();
+    try {
+      await step(job, 'summarizing', dir, 'summary.md', { ISSUE: text, NUMBER: String(n) }, SUMMARY, 60, 'summary.html');
+    } finally {
+      if ((await git(['rev-parse', '--abbrev-ref', 'HEAD'], dir)).trim() !== branch) await git(['checkout', branch], dir);
+    }
+    if ((await git(['rev-parse', 'HEAD'], dir)).trim() !== head) throw new Error('summary step changed the branch');
+  }
+
   async function build(n, job) {
     const dir = await worktree(n);
     const { title, text, plan: approved } = await issueText(n);
@@ -104,16 +118,20 @@ export function createRunner({ client, token, repo, repoDir, runsDir, runClaude 
     // step() deletes pr.md before each build, so an unfinished build never leaves one behind.
     const prFile = join(dir, '.factory', 'pr.md');
     let prBody;
-    if (existsSync(prFile) && (await commits()) > 0) {
+    const resumed = existsSync(prFile) && (await commits()) > 0;
+    if (resumed) {
       job.step = 'building';
       prBody = await readFile(prFile, 'utf8');
     } else {
       prBody = await step(job, 'building', dir, 'builder.md', { ISSUE: text, PLAN: planBlock, NUMBER: String(n) }, BUILD, 80, 'pr.md');
       if (!(await commits())) throw new Error('builder made no commits');
     }
+    // A retry keeps a finished summary; a fresh build always gets a new one.
+    if (!resumed || !existsSync(join(dir, '.factory', 'summary.html'))) await summarize(n, job, dir, text, branch);
     await git(['-c', 'credential.helper=', 'push', `https://x-access-token:${token}@github.com/${repo}.git`, `+HEAD:refs/heads/${branch}`], dir);
     const found = await client.findPullForIssue(n);
     const pr = found?.state === 'open' ? found : (await client.createPull({ head: branch, title, body: `${prBody}\n\nCloses #${n}` }));
+    await client.addComment(pr.number, `${SUMMARY_MARK}\n[Open the summary](${summaryUrl(n)}): screenshots, what changed, checks. Served by the factory dashboard on this Mac.`);
     const review = await step(job, 'reviewing-code', dir, 'code-reviewer.md', { ISSUE: text }, REVIEW, 30, 'code-review.md');
     await client.addComment(pr.number, `<!-- factory:code-review -->\n${review}`);
     await client.setStage(n, 'stage:in-review');

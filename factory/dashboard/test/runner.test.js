@@ -7,7 +7,7 @@ import { createRunner } from '../src/runner.js';
 
 const TOKEN = 'ghp_SECRET123';
 
-function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, commits = '2', failOn = null, pushError = null, spy = null, now = () => '2026-01-01T00:00:00.000Z' } = {}) {
+function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, commits = '2', failOn = null, pushError = null, branchAfterSummary = null, spy = null, now = () => '2026-01-01T00:00:00.000Z' } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'runner-'));
   const repoDir = join(root, 'repo');
   const runsDir = join(root, 'runs');
@@ -37,6 +37,7 @@ function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, 
     if (failOn && step.includes(failOn)) throw new Error(`boom ${TOKEN}`);
     if (step.includes('planner')) f('plan.md', `plan v${calls.claude.filter((c) => c.prompt.includes('planner')).length}`);
     else if (step.includes('plan reviewer')) f('plan-review.md', verdicts.shift() ?? 'Verdict: APPROVE');
+    else if (step.includes('summary writer')) f('summary.html', '<html>summary</html>');
     else if (step.includes('builder')) { f('pr.md', 'pr body'); }
     else if (step.includes('code reviewer')) f('code-review.md', 'review text');
     return JSON.stringify({ result: 'done' });
@@ -45,6 +46,7 @@ function setup({ outputs = {}, issues = {}, existingWorktree = [], pull = null, 
     calls.git.push({ args, cwd });
     if (args[0] === 'worktree' && args[1] === 'add') mkdirSync(args[args.indexOf('-B') + 2], { recursive: true });
     if (args[0] === 'rev-list') return `${commits}\n`;
+    if (args[0] === 'rev-parse') return args.includes('--abbrev-ref') ? `${branchAfterSummary ?? `factory/issue-${cwd.split('issue-').pop()}`}\n` : 'abc123\n';
     if (args.includes('push') && pushError) throw new Error(pushError);
     return '';
   };
@@ -116,21 +118,28 @@ test('building pushes, opens a PR with Closes #N and posts the code review', asy
   assert.ok(push.args.includes(`https://x-access-token:${TOKEN}@github.com/o/r.git`));
   assert.ok(push.args.some((a) => a.includes('factory/issue-5')));
   assert.deepEqual(calls.pulls, [{ head: 'factory/issue-5', title: 'Title 5', body: 'pr body\n\nCloses #5' }]);
-  assert.deepEqual(calls.comments, [[77, '<!-- factory:code-review -->\nreview text']]);
+  assert.deepEqual(calls.comments, [[77, '<!-- factory:summary -->\n[Open the summary](http://localhost:4321/api/issues/5/summary): screenshots, what changed, checks. Served by the factory dashboard on this Mac.'], [77, '<!-- factory:code-review -->\nreview text']]);
   assert.deepEqual(calls.stages, [[5, 'stage:in-review']]);
-  assert.equal(calls.claude[1].allowedTools, 'Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*)');
+  assert.match(calls.claude[1].prompt, /summary writer/);
+  assert.match(calls.claude[1].prompt, /factory\/issue-5/);
+  assert.match(calls.claude[1].allowedTools, /run-app\/scripts\/run\.sh/);
+  assert.equal(calls.claude[1].maxTurns, 60);
+  const summary = calls.git.findIndex((g) => g.args[0] === 'rev-parse');
+  assert.ok(summary >= 0 && summary < calls.git.findIndex((g) => g.args.includes('push')));
+  assert.equal(calls.claude[2].allowedTools, 'Read,Glob,Grep,Write,Bash(git diff:*),Bash(git log:*)');
 });
 
 test('retrying after a finished build skips the builder and only reviews', async () => {
   const { runner, calls, runsDir } = setup({ existingWorktree: [5], pull: { number: 31, url: 'u', state: 'open' } });
   mkdirSync(join(runsDir, 'issue-5', '.factory'));
   writeFileSync(join(runsDir, 'issue-5', '.factory', 'pr.md'), 'earlier pr body');
+  writeFileSync(join(runsDir, 'issue-5', '.factory', 'summary.html'), 'earlier summary');
   runner.enqueue(5, 'building');
   await runner.whenIdle();
   assert.equal(calls.claude.length, 1);
   assert.match(calls.claude[0].prompt, /code reviewer/);
   assert.ok(calls.git.some((g) => g.args.includes('push')));
-  assert.deepEqual(calls.comments, [[31, '<!-- factory:code-review -->\nreview text']]);
+  assert.deepEqual(calls.comments, [[31, '<!-- factory:summary -->\n[Open the summary](http://localhost:4321/api/issues/5/summary): screenshots, what changed, checks. Served by the factory dashboard on this Mac.'], [31, '<!-- factory:code-review -->\nreview text']]);
   assert.deepEqual(calls.stages, [[5, 'stage:in-review']]);
 });
 
@@ -150,7 +159,7 @@ test('retrying a build reuses the existing worktree branch and PR', async () => 
   await runner.whenIdle();
   assert.ok(!calls.git.some((g) => g.args[0] === 'worktree'));
   assert.equal(calls.pulls.length, 0);
-  assert.deepEqual(calls.comments, [[31, '<!-- factory:code-review -->\nreview text']]);
+  assert.deepEqual(calls.comments, [[31, '<!-- factory:summary -->\n[Open the summary](http://localhost:4321/api/issues/5/summary): screenshots, what changed, checks. Served by the factory dashboard on this Mac.'], [31, '<!-- factory:code-review -->\nreview text']]);
 });
 
 test('a failed step marks the issue blocked and runs the next queued job', async () => {
@@ -216,7 +225,7 @@ test('a closed or merged PR is not reused', async () => {
   runner.enqueue(5, 'building');
   await runner.whenIdle();
   assert.equal(calls.pulls.length, 1);
-  assert.deepEqual(calls.comments, [[77, '<!-- factory:code-review -->\nreview text']]);
+  assert.deepEqual(calls.comments, [[77, '<!-- factory:summary -->\n[Open the summary](http://localhost:4321/api/issues/5/summary): screenshots, what changed, checks. Served by the factory dashboard on this Mac.'], [77, '<!-- factory:code-review -->\nreview text']]);
 });
 
 test('bold or heading-wrapped verdicts still parse', async () => {
@@ -258,7 +267,9 @@ test('default git passes timeouts: 120s generally, 300s for push', async () => {
   };
   const runClaude = async (prompt, opts) => {
     mkdirSync(join(opts.cwd, '.factory'), { recursive: true });
-    writeFileSync(join(opts.cwd, '.factory', prompt.includes('builder') ? 'pr.md' : 'code-review.md'), 'x');
+    const first = prompt.split('\n')[0];
+    const out = first.includes('summary writer') ? 'summary.html' : first.includes('builder') ? 'pr.md' : 'code-review.md';
+    writeFileSync(join(opts.cwd, '.factory', out), 'x');
     return '{}';
   };
   const runner = createRunner({ client, token: TOKEN, repo: 'o/r', repoDir: root, runsDir, runClaude, exec });
@@ -295,4 +306,31 @@ test('the job start time is reset when each step starts', async () => {
   await s.runner.whenIdle();
   assert.equal(seen.length, 2);
   assert.notEqual(seen[0], seen[1]);
+});
+
+test('retrying a finished build with no summary runs the summary, not the builder', async () => {
+  const { runner, calls, runsDir } = setup({ existingWorktree: [5], pull: { number: 31, url: 'u', state: 'open' } });
+  mkdirSync(join(runsDir, 'issue-5', '.factory'));
+  writeFileSync(join(runsDir, 'issue-5', '.factory', 'pr.md'), 'earlier pr body');
+  runner.enqueue(5, 'building');
+  await runner.whenIdle();
+  assert.deepEqual(calls.claude.map((c) => c.prompt.split('\n')[0].match(/(builder|summary writer|code reviewer)/)[0]), ['summary writer', 'code reviewer']);
+  assert.deepEqual(calls.stages, [[5, 'stage:in-review']]);
+});
+
+test('the summary step is put back on the branch if it leaves it detached', async () => {
+  const { runner, calls } = setup({ branchAfterSummary: 'HEAD' });
+  runner.enqueue(5, 'building');
+  await runner.whenIdle();
+  assert.ok(calls.git.some((g) => g.args[0] === 'checkout' && g.args[1] === 'factory/issue-5'));
+  assert.deepEqual(calls.stages, [[5, 'stage:in-review']]);
+});
+
+test('a failed summary blocks the ticket and does not push', async () => {
+  const { runner, calls } = setup({ failOn: 'summary writer' });
+  runner.enqueue(5, 'building');
+  await runner.whenIdle();
+  assert.ok(!calls.git.some((g) => g.args.includes('push')));
+  assert.deepEqual(calls.blocked, [[5, true]]);
+  assert.match(calls.comments[0][1], /Factory step summarizing failed/);
 });

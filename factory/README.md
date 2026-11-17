@@ -6,6 +6,13 @@ branch, the server pushes and opens a PR, and an AI reviewer comments. Vlad merg
 `claude -p` started by the dashboard server, using the `claude` CLI's own login. One AI step runs at a time. Claude
 never pushes and never calls GitHub; the server does both.
 
+## Summary step
+
+After the builder commits, an AI step runs the repo's `/summary` workflow on the ticket branch: screenshots on the
+running Android emulator and iOS simulator (before shots from `origin/main`), what changed, checks. The page is at
+`http://localhost:4321/api/issues/<N>/summary` and linked in a PR comment and the card's story. Keep an emulator and a
+simulator running: with no device, a UI change fails this step (Needs attention) and Retry resumes at the summary.
+
 ## Labels
 
 | Label | Meaning |

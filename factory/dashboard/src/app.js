@@ -18,7 +18,7 @@ const TYPES = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
 };
-const MARKERS = { 'factory:plan': 'plan', 'factory:plan-review': 'plan-review', 'factory:code-review': 'code-review' };
+const MARKERS = { 'factory:plan': 'plan', 'factory:plan-review': 'plan-review', 'factory:summary': 'summary', 'factory:code-review': 'code-review' };
 const MARKER_RE = /^\s*<!--\s*(factory:[a-z-]+)\s*-->\s*\n?/;
 
 class HttpError extends Error {
@@ -58,7 +58,7 @@ async function readJson(req) {
   }
 }
 
-export function createApp({ client, writeTicket, runner, demo = false, now = Date.now, publicDir = DEFAULT_PUBLIC }) {
+export function createApp({ client, writeTicket, runner, runsDir = null, demo = false, now = Date.now, publicDir = DEFAULT_PUBLIC }) {
   let cache = null; // { at, board }: freshness only
   let lastGood = null; // last board GitHub gave us, for the error fallback
   const invalidate = () => { cache = null; };
@@ -150,6 +150,18 @@ export function createApp({ client, writeTicket, runner, demo = false, now = Dat
     send(res, 200, { ok: true });
   }
 
+  // The summary page the factory's summary step left in the ticket's worktree (self-contained HTML).
+  async function getSummary(res, n) {
+    if (!runsDir) return send(res, 404, { error: 'Not found' });
+    try {
+      const data = await readFile(join(runsDir, `issue-${n}`, '.factory', 'summary.html'));
+      res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' });
+      res.end(data);
+    } catch {
+      send(res, 404, { error: 'No summary for this ticket yet' });
+    }
+  }
+
   async function serveStatic(res, pathname) {
     let rel;
     try { rel = decodeURIComponent(pathname); } catch { return send(res, 404, { error: 'Not found' }); }
@@ -175,6 +187,7 @@ export function createApp({ client, writeTicket, runner, demo = false, now = Dat
       if (pathname === '/api/tickets' && method === 'POST') return await createTicket(req, res);
       if ((m = /^\/api\/issues\/(\d+)$/.exec(pathname)) && method === 'GET') return await getIssueDetail(res, Number(m[1]));
       if ((m = /^\/api\/issues\/(\d+)\/actions$/.exec(pathname)) && method === 'POST') return await runAction(req, res, Number(m[1]));
+      if ((m = /^\/api\/issues\/(\d+)\/summary$/.exec(pathname)) && method === 'GET') return await getSummary(res, Number(m[1]));
       if (pathname.startsWith('/api/')) return send(res, 404, { error: 'Not found' });
       if (method === 'GET' || method === 'HEAD') return await serveStatic(res, pathname);
       return send(res, 404, { error: 'Not found' });
