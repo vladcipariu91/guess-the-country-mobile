@@ -625,6 +625,7 @@
   const COMMENT_KIND = {
     plan: { badge: 'Plan', tone: 'ai', who: 'AI planner' },
     'plan-review': { badge: 'Plan review', tone: 'ai', who: 'AI plan reviewer' },
+    summary: { badge: 'Summary', tone: 'ai', who: 'AI summary' },
     'code-review': { badge: 'Code review', tone: 'ai', who: 'AI code reviewer' },
   };
 

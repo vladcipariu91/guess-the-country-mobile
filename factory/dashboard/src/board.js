@@ -4,6 +4,7 @@ const STEP_LABEL = {
   planning: 'AI planning',
   'reviewing-plan': 'AI reviewing plan',
   building: 'AI coding',
+  summarizing: 'AI summarizing',
   'reviewing-code': 'AI reviewing code',
 };
 const ATTENTION = 'Needs attention';
